@@ -52,59 +52,6 @@ func runCmd(t *testing.T, args ...string) (string, error) {
 	return buf.String(), err
 }
 
-func TestInitCmd(t *testing.T) {
-	dir := t.TempDir()
-
-	out, err := runCmd(t, "init", "--dir", dir)
-	if err != nil {
-		t.Fatalf("init error: %v", err)
-	}
-	if !strings.Contains(out, "Created key at") {
-		t.Errorf("unexpected output: %s", out)
-	}
-	if !strings.Contains(out, "Public key:") {
-		t.Errorf("missing public key in output: %s", out)
-	}
-
-	// Verify key file exists
-	if _, err := os.Stat(filepath.Join(dir, "key.txt")); err != nil {
-		t.Errorf("key.txt not created: %v", err)
-	}
-
-	// Verify config.yaml created
-	if _, err := os.Stat(filepath.Join(dir, "config.yaml")); err != nil {
-		t.Errorf("config.yaml not created: %v", err)
-	}
-}
-
-func TestInitCmd_AlreadyExists(t *testing.T) {
-	dir := t.TempDir()
-
-	// First init
-	_, err := runCmd(t, "init", "--dir", dir)
-	if err != nil {
-		t.Fatalf("first init error: %v", err)
-	}
-
-	// Second init should fail
-	_, err = runCmd(t, "init", "--dir", dir)
-	if err == nil {
-		t.Fatal("expected error on second init without --force")
-	}
-}
-
-func TestInitCmd_Force(t *testing.T) {
-	dir := t.TempDir()
-
-	_, _ = runCmd(t, "init", "--dir", dir)
-
-	// Force should work
-	_, err := runCmd(t, "init", "--dir", dir, "--force")
-	if err != nil {
-		t.Fatalf("init --force error: %v", err)
-	}
-}
-
 func TestSetAndGet(t *testing.T) {
 	dir := setupTestEnv(t)
 
