@@ -1,0 +1,17 @@
+# Binary
+/lsm
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Claude
+CLAUDE.md
+AGENT.md
+GEMINI.md
+.claude/
