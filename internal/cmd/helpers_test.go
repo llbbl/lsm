@@ -191,3 +191,93 @@ func TestResolveWithPositional_EnvFlagSet_AppPositional(t *testing.T) {
 		t.Errorf("remaining = %v, want [MY_KEY]", remaining)
 	}
 }
+
+func TestReadInput_FromFile(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "input.txt")
+	os.WriteFile(f, []byte("file content"), 0644)
+
+	data, err := readInput(f)
+	if err != nil {
+		t.Fatalf("readInput() error: %v", err)
+	}
+	if string(data) != "file content" {
+		t.Errorf("got %q, want %q", string(data), "file content")
+	}
+}
+
+func TestReadInput_FromStdin(t *testing.T) {
+	r, w, _ := os.Pipe()
+	origStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = origStdin }()
+
+	go func() {
+		w.WriteString("piped data")
+		w.Close()
+	}()
+
+	data, err := readInput("-")
+	if err != nil {
+		t.Fatalf("readInput('-') error: %v", err)
+	}
+	if string(data) != "piped data" {
+		t.Errorf("got %q, want %q", string(data), "piped data")
+	}
+}
+
+func TestReadInput_FileNotFound(t *testing.T) {
+	_, err := readInput("/nonexistent/path/file.txt")
+	if err == nil {
+		t.Fatal("expected error for nonexistent file")
+	}
+}
+
+func TestDetermineEditor(t *testing.T) {
+	t.Run("uses EDITOR", func(t *testing.T) {
+		t.Setenv("EDITOR", "nano")
+		t.Setenv("VISUAL", "code")
+
+		if got := determineEditor(); got != "nano" {
+			t.Errorf("got %q, want %q", got, "nano")
+		}
+	})
+
+	t.Run("falls back to VISUAL", func(t *testing.T) {
+		t.Setenv("EDITOR", "")
+		t.Setenv("VISUAL", "code")
+
+		if got := determineEditor(); got != "code" {
+			t.Errorf("got %q, want %q", got, "code")
+		}
+	})
+
+	t.Run("defaults to vi", func(t *testing.T) {
+		t.Setenv("EDITOR", "")
+		t.Setenv("VISUAL", "")
+
+		if got := determineEditor(); got != "vi" {
+			t.Errorf("got %q, want %q", got, "vi")
+		}
+	})
+}
+
+func TestSecureRemove(t *testing.T) {
+	t.Run("overwrites and deletes file", func(t *testing.T) {
+		f := filepath.Join(t.TempDir(), "secret.txt")
+		os.WriteFile(f, []byte("sensitive data"), 0600)
+
+		if err := secureRemove(f); err != nil {
+			t.Fatalf("secureRemove() error: %v", err)
+		}
+
+		if _, err := os.Stat(f); !os.IsNotExist(err) {
+			t.Error("file still exists after secureRemove")
+		}
+	})
+
+	t.Run("no error if file already gone", func(t *testing.T) {
+		if err := secureRemove("/nonexistent/path/gone.txt"); err != nil {
+			t.Errorf("secureRemove() on missing file: %v", err)
+		}
+	})
+}

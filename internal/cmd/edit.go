@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 
@@ -26,14 +27,7 @@ func newEditCmd() *cobra.Command {
 				return err
 			}
 
-			// Determine editor
-			editor := os.Getenv("EDITOR")
-			if editor == "" {
-				editor = os.Getenv("VISUAL")
-			}
-			if editor == "" {
-				editor = "vi"
-			}
+			editor := determineEditor()
 
 			// Write decrypted content to temp file
 			tmpFile, err := os.CreateTemp("", "lsm-edit-*.env")
@@ -42,12 +36,9 @@ func newEditCmd() *cobra.Command {
 			}
 			tmpPath := tmpFile.Name()
 			defer func() {
-				// Overwrite before removing for secure deletion
-				if info, err := os.Stat(tmpPath); err == nil {
-					zeros := make([]byte, info.Size())
-					os.WriteFile(tmpPath, zeros, 0600)
+				if err := secureRemove(tmpPath); err != nil {
+					slog.Warn("failed to securely remove temp file", "path", tmpPath, "error", err)
 				}
-				os.Remove(tmpPath)
 			}()
 
 			content := s.RawContent()

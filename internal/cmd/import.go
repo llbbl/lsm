@@ -5,8 +5,6 @@ package cmd
 
 import (
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -27,19 +25,9 @@ func newImportCmd() *cobra.Command {
 				return fmt.Errorf("requires FILE argument (use '-' for stdin)")
 			}
 
-			filePath := remaining[0]
-
-			var content []byte
-			if filePath == "-" {
-				content, err = io.ReadAll(os.Stdin)
-				if err != nil {
-					return fmt.Errorf("reading from stdin: %w", err)
-				}
-			} else {
-				content, err = os.ReadFile(filePath)
-				if err != nil {
-					return fmt.Errorf("reading file %s: %w", filePath, err)
-				}
+			content, err := readInput(remaining[0])
+			if err != nil {
+				return fmt.Errorf("reading input: %w", err)
 			}
 
 			s, err := openStore(cfg)

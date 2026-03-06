@@ -46,26 +46,32 @@ func newExecCmd() *cobra.Command {
 			}
 
 			// Build environment: secrets override existing env vars
-			secrets := s.Dump()
-			overridden := make(map[string]bool, len(secrets))
-			var env []string
-			for _, e := range os.Environ() {
-				k, _, _ := strings.Cut(e, "=")
-				if _, ok := secrets[k]; ok {
-					overridden[k] = true
-					env = append(env, fmt.Sprintf("%s=%s", k, secrets[k]))
-				} else {
-					env = append(env, e)
-				}
-			}
-			for k, v := range secrets {
-				if !overridden[k] {
-					env = append(env, fmt.Sprintf("%s=%s", k, v))
-				}
-			}
+			env := buildEnvWithSecrets(os.Environ(), s.Dump())
 
 			// Replace this process with the command
 			return syscall.Exec(binary, commandArgs, env)
 		},
 	}
+}
+
+// buildEnvWithSecrets merges secrets into an existing environment.
+// Secrets override any existing variable with the same key.
+func buildEnvWithSecrets(environ []string, secrets map[string]string) []string {
+	overridden := make(map[string]bool, len(secrets))
+	var env []string
+	for _, e := range environ {
+		k, _, _ := strings.Cut(e, "=")
+		if v, ok := secrets[k]; ok {
+			overridden[k] = true
+			env = append(env, k+"="+v)
+		} else {
+			env = append(env, e)
+		}
+	}
+	for k, v := range secrets {
+		if !overridden[k] {
+			env = append(env, k+"="+v)
+		}
+	}
+	return env
 }

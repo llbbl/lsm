@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -83,4 +84,37 @@ func resolveWithPositional(args []string, requiredCount int) (*config.Config, []
 		return nil, nil, err
 	}
 	return cfg, remaining, nil
+}
+
+// readInput reads from stdin if path is "-", otherwise reads the file at path.
+func readInput(path string) ([]byte, error) {
+	if path == "-" {
+		return io.ReadAll(os.Stdin)
+	}
+	return os.ReadFile(path)
+}
+
+// determineEditor returns the editor command from EDITOR, VISUAL, or "vi".
+func determineEditor() string {
+	if e := os.Getenv("EDITOR"); e != "" {
+		return e
+	}
+	if e := os.Getenv("VISUAL"); e != "" {
+		return e
+	}
+	return "vi"
+}
+
+// secureRemove overwrites a file with zeros before deleting it.
+func secureRemove(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		// File already gone, nothing to do
+		return nil
+	}
+	zeros := make([]byte, info.Size())
+	if err := os.WriteFile(path, zeros, 0600); err != nil {
+		return fmt.Errorf("overwriting temp file: %w", err)
+	}
+	return os.Remove(path)
 }

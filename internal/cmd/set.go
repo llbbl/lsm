@@ -5,8 +5,6 @@ package cmd
 
 import (
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -32,7 +30,7 @@ func newSetCmd() *cobra.Command {
 
 			// Read from stdin if value is "-"
 			if value == "-" {
-				data, err := io.ReadAll(os.Stdin)
+				data, err := readInput("-")
 				if err != nil {
 					return fmt.Errorf("reading from stdin: %w", err)
 				}
