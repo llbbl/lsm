@@ -503,14 +503,7 @@ func TestEditCmd_FallsBackToVISUAL(t *testing.T) {
 func TestExecCmd_MissingSeparator(t *testing.T) {
 	dir := setupTestEnv(t)
 
-	// Save original os.Args and restore after
-	origArgs := os.Args
-	defer func() { os.Args = origArgs }()
-
-	// Simulate: lsm exec --dir <dir> --app testapp --env dev echo hello
-	// (no -- separator)
-	os.Args = []string{"lsm", "exec", "--dir", dir, "--app", "testapp", "--env", "dev", "echo", "hello"}
-
+	// No "--" separator: ArgsLenAtDash returns -1
 	_, err := runCmd(t, "exec", "--dir", dir, "--app", "testapp", "--env", "dev", "echo", "hello")
 	if err == nil {
 		t.Fatal("expected error when -- separator is missing")
@@ -526,13 +519,8 @@ func TestExecCmd_CommandNotFound(t *testing.T) {
 		t.Fatalf("set error: %v", err)
 	}
 
-	origArgs := os.Args
-	defer func() { os.Args = origArgs }()
-
-	// Simulate: lsm exec --dir <dir> --app testapp --env dev -- nonexistent_command_xyz
-	os.Args = []string{"lsm", "exec", "--dir", dir, "--app", "testapp", "--env", "dev", "--", "nonexistent_command_xyz_12345"}
-
-	_, err = runCmd(t, "exec", "--dir", dir, "--app", "testapp", "--env", "dev", "nonexistent_command_xyz_12345")
+	// Pass "--" through cobra so ArgsLenAtDash is set correctly
+	_, err = runCmd(t, "exec", "--dir", dir, "--app", "testapp", "--env", "dev", "--", "nonexistent_command_xyz_12345")
 	if err == nil {
 		t.Fatal("expected error for nonexistent command")
 	}

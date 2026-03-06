@@ -19,24 +19,17 @@ func newExecCmd() *cobra.Command {
 		Short:              "Inject secrets as env vars and run a command",
 		DisableFlagParsing: false,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Find the "--" separator
-			dashIdx := -1
-			for i, a := range os.Args {
-				if a == "--" {
-					dashIdx = i
-					break
-				}
-			}
-
-			if dashIdx < 0 || dashIdx >= len(os.Args)-1 {
+			// ArgsLenAtDash returns the index in args where "--" was,
+			// or -1 if "--" was not used. This avoids coupling to os.Args.
+			dashAt := cmd.ArgsLenAtDash()
+			if dashAt < 0 || dashAt >= len(args) {
 				return fmt.Errorf("usage: lsm exec [app] [env] -- command [args...]")
 			}
 
-			// Everything after -- is the command
-			commandArgs := os.Args[dashIdx+1:]
+			preArgs := args[:dashAt]
+			commandArgs := args[dashAt:]
 
-			// args before -- (minus the "exec" itself) are potential app/env
-			cfg, _, err := resolveWithPositional(args, 0)
+			cfg, _, err := resolveWithPositional(preArgs, 0)
 			if err != nil {
 				return err
 			}
