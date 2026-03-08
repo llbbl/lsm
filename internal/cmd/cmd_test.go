@@ -144,6 +144,12 @@ func TestList(t *testing.T) {
 func TestDump(t *testing.T) {
 	dir := setupTestEnv(t)
 
+	// Use a temp directory for output files so we don't pollute cwd.
+	outDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(outDir)
+	defer os.Chdir(origDir)
+
 	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "DB_URL", "postgres://localhost")
 	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "API_KEY", "secret")
 
@@ -152,11 +158,15 @@ func TestDump(t *testing.T) {
 		t.Fatalf("dump error: %v", err)
 	}
 
-	if !strings.Contains(out, "DB_URL=postgres://localhost") {
-		t.Errorf("dump missing DB_URL: %s", out)
+	// Terminal output should have masked values, not real ones.
+	if strings.Contains(out, "postgres://localhost") {
+		t.Errorf("dump terminal output should not contain real value: %s", out)
 	}
-	if !strings.Contains(out, "API_KEY=secret") {
-		t.Errorf("dump missing API_KEY: %s", out)
+	if !strings.Contains(out, "DB_URL=") {
+		t.Errorf("dump missing DB_URL key: %s", out)
+	}
+	if !strings.Contains(out, "Wrote 2 secrets") {
+		t.Errorf("dump missing write confirmation: %s", out)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"filippo.io/age"
 
@@ -103,6 +104,23 @@ func determineEditor() string {
 		return e
 	}
 	return "vi"
+}
+
+// maskValue masks a secret value for safe terminal display.
+func maskValue(value string) string {
+	n := len(value)
+	switch {
+	case n == 0:
+		return ""
+	case n <= 3:
+		return strings.Repeat("*", n)
+	case n <= 8:
+		return value[:1] + strings.Repeat("*", n-1)
+	case n <= 20:
+		return value[:2] + strings.Repeat("*", n-2)
+	default:
+		return value[:2] + "********"
+	}
 }
 
 // secureRemove overwrites a file with zeros before deleting it.
