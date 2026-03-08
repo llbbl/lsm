@@ -51,11 +51,13 @@ func newInitCmd() *cobra.Command {
 			// Create default config.yaml if it doesn't exist
 			configPath := filepath.Join(dir, "config.yaml")
 			if _, err := os.Stat(configPath); os.IsNotExist(err) {
-				os.WriteFile(configPath, []byte("env: dev\n"), 0644)
+				if err := os.WriteFile(configPath, []byte("env: dev\n"), 0644); err != nil {
+					return fmt.Errorf("writing default config: %w", err)
+				}
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Created key at %s\n", keyPath)
-			fmt.Fprintf(cmd.OutOrStdout(), "Public key: %s\n", identity.Recipient().String())
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Created key at %s\n", keyPath)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Public key: %s\n", identity.Recipient().String())
 			return nil
 		},
 	}

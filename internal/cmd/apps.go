@@ -26,7 +26,9 @@ func newAppsCmd() *cobra.Command {
 				return err
 			}
 			for _, app := range apps {
-				fmt.Fprintln(cmd.OutOrStdout(), app)
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), app); err != nil {
+					return err
+				}
 			}
 			return nil
 		},

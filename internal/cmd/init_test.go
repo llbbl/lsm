@@ -155,7 +155,9 @@ func TestInitCmd_PreservesExistingConfig(t *testing.T) {
 	// Create existing config with custom content
 	configPath := filepath.Join(dir, "config.yaml")
 	existingConfig := "env: production\n"
-	os.WriteFile(configPath, []byte(existingConfig), 0644)
+	if err := os.WriteFile(configPath, []byte(existingConfig), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
 
 	_, err := runCmd(t, "init", "--dir", dir)
 	if err != nil {
@@ -242,10 +244,9 @@ func TestInitCmd_ForceGeneratesNewKey(t *testing.T) {
 
 // extractPublicKey extracts the age1... public key from init command output
 func extractPublicKey(output string) string {
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "Public key:") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "Public key:"))
+	for line := range strings.SplitSeq(output, "\n") {
+		if after, ok := strings.CutPrefix(line, "Public key:"); ok {
+			return strings.TrimSpace(after)
 		}
 	}
 	return ""

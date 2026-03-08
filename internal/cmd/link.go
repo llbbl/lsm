@@ -56,7 +56,7 @@ func newLinkCmd() *cobra.Command {
 				return fmt.Errorf("saving global config: %w", err)
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Linked %s -> %s\n", app, cwd)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Linked %s -> %s\n", app, cwd)
 			return nil
 		},
 	}

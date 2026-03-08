@@ -34,15 +34,25 @@ func TestResolve_ProjectConfigOverridesDefaults(t *testing.T) {
 	projDir := t.TempDir()
 
 	// Write global config
-	os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte("env: dev"), 0644)
+	if err := os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte("env: dev"), 0644); err != nil {
+		t.Fatalf("writing global config: %v", err)
+	}
 
 	// Write project config
-	os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("app: customapp\nenv: staging"), 0644)
+	if err := os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("app: customapp\nenv: staging"), 0644); err != nil {
+		t.Fatalf("writing project config: %v", err)
+	}
 
 	// Change to project dir
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to project dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	cfg, err := Resolve(lsmDir, "", "")
 	if err != nil {
@@ -61,11 +71,19 @@ func TestResolve_GlobalConfigForEnv(t *testing.T) {
 	projDir := t.TempDir()
 
 	// Write global config only
-	os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte("env: dev"), 0644)
+	if err := os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte("env: dev"), 0644); err != nil {
+		t.Fatalf("writing global config: %v", err)
+	}
 
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to project dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	cfg, err := Resolve(lsmDir, "", "")
 	if err != nil {
@@ -84,11 +102,19 @@ func TestResolve_FlagOverridesProjectConfig(t *testing.T) {
 	lsmDir := t.TempDir()
 	projDir := t.TempDir()
 
-	os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("app: projapp\nenv: staging"), 0644)
+	if err := os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("app: projapp\nenv: staging"), 0644); err != nil {
+		t.Fatalf("writing project config: %v", err)
+	}
 
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to project dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	cfg, err := Resolve(lsmDir, "flagapp", "production")
 	if err != nil {
@@ -107,8 +133,14 @@ func TestResolve_NoEnvAvailable(t *testing.T) {
 	projDir := t.TempDir()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to project dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	_, err := Resolve(lsmDir, "app", "")
 	if err == nil {
@@ -121,8 +153,14 @@ func TestResolve_DefaultDir(t *testing.T) {
 	// We just test that it doesn't error with explicit app/env
 	projDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to project dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	cfg, err := Resolve("", "testapp", "dev")
 	if err != nil {
@@ -171,14 +209,24 @@ func TestResolve_MalformedProjectConfig(t *testing.T) {
 	projDir := t.TempDir()
 
 	// Write valid global config so env resolves
-	os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte("env: dev"), 0644)
+	if err := os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte("env: dev"), 0644); err != nil {
+		t.Fatalf("writing global config: %v", err)
+	}
 
 	// Write malformed project .lsm.yaml (invalid YAML)
-	os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("{{invalid yaml:::"), 0644)
+	if err := os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("{{invalid yaml:::"), 0644); err != nil {
+		t.Fatalf("writing project config: %v", err)
+	}
 
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to project dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	// Should not crash; malformed project config is silently ignored
 	cfg, err := Resolve(lsmDir, "", "")
@@ -196,11 +244,19 @@ func TestResolve_MalformedGlobalConfig(t *testing.T) {
 	projDir := t.TempDir()
 
 	// Write malformed global config.yaml
-	os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte("{{invalid yaml:::"), 0644)
+	if err := os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte("{{invalid yaml:::"), 0644); err != nil {
+		t.Fatalf("writing global config: %v", err)
+	}
 
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to project dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	// Should return error for malformed global config
 	_, err := Resolve(lsmDir, "app", "")
@@ -233,7 +289,10 @@ func TestSaveProjectConfig_VerifyContent(t *testing.T) {
 
 	// Verify it can be loaded back
 	var loaded ProjectConfig
-	loadedData, _ := os.ReadFile(filepath.Join(dir, ".lsm.yaml"))
+	loadedData, err := os.ReadFile(filepath.Join(dir, ".lsm.yaml"))
+	if err != nil {
+		t.Fatalf("reading .lsm.yaml for reload: %v", err)
+	}
 	if err := yaml.Unmarshal(loadedData, &loaded); err != nil {
 		t.Fatalf("failed to parse saved config: %v", err)
 	}
@@ -244,7 +303,9 @@ func TestSaveProjectConfig_VerifyContent(t *testing.T) {
 
 func TestLoadGlobalConfig_MalformedYAML(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("{{bad yaml"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("{{bad yaml"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
 
 	_, err := LoadGlobalConfig(dir)
 	if err == nil {
@@ -254,7 +315,9 @@ func TestLoadGlobalConfig_MalformedYAML(t *testing.T) {
 
 func TestLoadGlobalConfig_Valid(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("env: production"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("env: production"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
 
 	cfg, err := LoadGlobalConfig(dir)
 	if err != nil {
@@ -369,11 +432,19 @@ func TestResolve_RegistryLookup(t *testing.T) {
 
 	// Write global config with apps registry
 	configContent := "env: dev\napps:\n  myregisteredapp: " + resolvedProjDir + "\n"
-	os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte(configContent), 0644)
+	if err := os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte(configContent), 0644); err != nil {
+		t.Fatalf("writing global config: %v", err)
+	}
 
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to project dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	cfg, err := Resolve(lsmDir, "", "")
 	if err != nil {
@@ -396,14 +467,24 @@ func TestResolve_ProjectConfigOverridesRegistry(t *testing.T) {
 
 	// Write global config with registry entry for this dir
 	configContent := "env: dev\napps:\n  registryapp: " + resolvedProjDir + "\n"
-	os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte(configContent), 0644)
+	if err := os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte(configContent), 0644); err != nil {
+		t.Fatalf("writing global config: %v", err)
+	}
 
 	// Write project config that should take priority
-	os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("app: projapp\nenv: staging"), 0644)
+	if err := os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("app: projapp\nenv: staging"), 0644); err != nil {
+		t.Fatalf("writing project config: %v", err)
+	}
 
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to project dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	cfg, err := Resolve(lsmDir, "", "")
 	if err != nil {

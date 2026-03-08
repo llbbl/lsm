@@ -280,7 +280,9 @@ func TestListApps(t *testing.T) {
 	dir := t.TempDir()
 	// Create some fake .age files
 	for _, name := range []string{"app1.dev.age", "app1.prod.age", "app2.dev.age", "config.yaml"} {
-		os.WriteFile(filepath.Join(dir, name), []byte("fake"), 0600)
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("fake"), 0600); err != nil {
+			t.Fatalf("writing %s: %v", name, err)
+		}
 	}
 
 	apps, err := ListApps(dir)
@@ -295,7 +297,9 @@ func TestListApps(t *testing.T) {
 func TestListEnvs(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{"myapp.dev.age", "myapp.production.age", "other.dev.age"} {
-		os.WriteFile(filepath.Join(dir, name), []byte("fake"), 0600)
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("fake"), 0600); err != nil {
+			t.Fatalf("writing %s: %v", name, err)
+		}
 	}
 
 	envs, err := ListEnvs(dir, "myapp")
@@ -413,7 +417,9 @@ func TestListEnvs_NoMatchingApp(t *testing.T) {
 	dir := t.TempDir()
 	// Create files for a different app
 	for _, name := range []string{"otherapp.dev.age", "otherapp.prod.age"} {
-		os.WriteFile(filepath.Join(dir, name), []byte("fake"), 0600)
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("fake"), 0600); err != nil {
+			t.Fatalf("writing %s: %v", name, err)
+		}
 	}
 
 	envs, err := ListEnvs(dir, "nonexistent")
@@ -441,7 +447,9 @@ func TestStore_Load_CorruptFile(t *testing.T) {
 	s := New(dir, "app", "dev", id)
 
 	// Write garbage to the .age file
-	os.WriteFile(s.FilePath(), []byte("this is not valid age encrypted data"), 0600)
+	if err := os.WriteFile(s.FilePath(), []byte("this is not valid age encrypted data"), 0600); err != nil {
+		t.Fatalf("writing corrupt file: %v", err)
+	}
 
 	err := s.Load()
 	if err == nil {
@@ -456,9 +464,17 @@ func TestStore_Load_UnreadableFile(t *testing.T) {
 
 	// Create a file with no read permissions
 	path := s.FilePath()
-	os.WriteFile(path, []byte("data"), 0600)
-	os.Chmod(path, 0000)
-	defer os.Chmod(path, 0600) // restore so TempDir cleanup works
+	if err := os.WriteFile(path, []byte("data"), 0600); err != nil {
+		t.Fatalf("writing file: %v", err)
+	}
+	if err := os.Chmod(path, 0000); err != nil {
+		t.Fatalf("chmod 0000: %v", err)
+	}
+	defer func() {
+		if err := os.Chmod(path, 0600); err != nil {
+			t.Logf("warning: restoring permissions: %v", err)
+		}
+	}()
 
 	err := s.Load()
 	if err == nil {

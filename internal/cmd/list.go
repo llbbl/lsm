@@ -25,7 +25,7 @@ func newListCmd() *cobra.Command {
 			}
 
 			for _, key := range s.List() {
-				fmt.Fprintln(cmd.OutOrStdout(), key)
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), key)
 			}
 			return nil
 		},

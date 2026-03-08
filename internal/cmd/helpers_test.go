@@ -194,7 +194,9 @@ func TestResolveWithPositional_EnvFlagSet_AppPositional(t *testing.T) {
 
 func TestReadInput_FromFile(t *testing.T) {
 	f := filepath.Join(t.TempDir(), "input.txt")
-	os.WriteFile(f, []byte("file content"), 0644)
+	if err := os.WriteFile(f, []byte("file content"), 0644); err != nil {
+		t.Fatalf("writing input file: %v", err)
+	}
 
 	data, err := readInput(f)
 	if err != nil {
@@ -212,8 +214,8 @@ func TestReadInput_FromStdin(t *testing.T) {
 	defer func() { os.Stdin = origStdin }()
 
 	go func() {
-		w.WriteString("piped data")
-		w.Close()
+		_, _ = w.WriteString("piped data")
+		_ = w.Close()
 	}()
 
 	data, err := readInput("-")
@@ -264,7 +266,9 @@ func TestDetermineEditor(t *testing.T) {
 func TestSecureRemove(t *testing.T) {
 	t.Run("overwrites and deletes file", func(t *testing.T) {
 		f := filepath.Join(t.TempDir(), "secret.txt")
-		os.WriteFile(f, []byte("sensitive data"), 0600)
+		if err := os.WriteFile(f, []byte("sensitive data"), 0600); err != nil {
+			t.Fatalf("writing test file: %v", err)
+		}
 
 		if err := secureRemove(f); err != nil {
 			t.Fatalf("secureRemove() error: %v", err)

@@ -74,7 +74,9 @@ func TestLoadIdentity_NotFound(t *testing.T) {
 func TestLoadIdentity_InvalidContent(t *testing.T) {
 	dir := t.TempDir()
 	keyPath := filepath.Join(dir, "key.txt")
-	os.WriteFile(keyPath, []byte("not a valid key"), 0600)
+	if err := os.WriteFile(keyPath, []byte("not a valid key"), 0600); err != nil {
+		t.Fatalf("writing key file: %v", err)
+	}
 
 	_, err := LoadIdentity(keyPath)
 	if err == nil {
@@ -146,7 +148,9 @@ func TestDecrypt_CorruptData(t *testing.T) {
 func TestLoadIdentity_EmptyFile(t *testing.T) {
 	dir := t.TempDir()
 	keyPath := filepath.Join(dir, "key.txt")
-	os.WriteFile(keyPath, []byte(""), 0600)
+	if err := os.WriteFile(keyPath, []byte(""), 0600); err != nil {
+		t.Fatalf("writing key file: %v", err)
+	}
 
 	_, err := LoadIdentity(keyPath)
 	if err == nil {
@@ -157,7 +161,9 @@ func TestLoadIdentity_EmptyFile(t *testing.T) {
 func TestLoadIdentity_OnlyComments(t *testing.T) {
 	dir := t.TempDir()
 	keyPath := filepath.Join(dir, "key.txt")
-	os.WriteFile(keyPath, []byte("# just a comment\n# another comment\n"), 0600)
+	if err := os.WriteFile(keyPath, []byte("# just a comment\n# another comment\n"), 0600); err != nil {
+		t.Fatalf("writing key file: %v", err)
+	}
 
 	_, err := LoadIdentity(keyPath)
 	if err == nil {
@@ -169,7 +175,9 @@ func TestLoadIdentity_MalformedKey(t *testing.T) {
 	dir := t.TempDir()
 	keyPath := filepath.Join(dir, "key.txt")
 	// Write something that looks like a key line but is not valid bech32
-	os.WriteFile(keyPath, []byte("AGE-SECRET-KEY-NOTVALID\n"), 0600)
+	if err := os.WriteFile(keyPath, []byte("AGE-SECRET-KEY-NOTVALID\n"), 0600); err != nil {
+		t.Fatalf("writing key file: %v", err)
+	}
 
 	_, err := LoadIdentity(keyPath)
 	if err == nil {

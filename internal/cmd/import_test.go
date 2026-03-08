@@ -15,7 +15,9 @@ func TestImportFromFile(t *testing.T) {
 
 	// Create a .env file to import
 	envFile := filepath.Join(t.TempDir(), ".env")
-	os.WriteFile(envFile, []byte("IMPORTED_KEY=imported_value\nOTHER=test\n"), 0644)
+	if err := os.WriteFile(envFile, []byte("IMPORTED_KEY=imported_value\nOTHER=test\n"), 0644); err != nil {
+		t.Fatalf("writing env file: %v", err)
+	}
 
 	_, err := runCmd(t, "import", "--dir", dir, "--app", "testapp", "--env", "dev", envFile)
 	if err != nil {
@@ -41,8 +43,8 @@ func TestImportFromStdin(t *testing.T) {
 	defer func() { os.Stdin = origStdin }()
 
 	go func() {
-		w.WriteString("PIPED_KEY=piped_value\nOTHER_KEY=other\n")
-		w.Close()
+		_, _ = w.WriteString("PIPED_KEY=piped_value\nOTHER_KEY=other\n")
+		_ = w.Close()
 	}()
 
 	_, err := runCmd(t, "import", "--dir", dir, "--app", "testapp", "--env", "dev", "-")
@@ -71,8 +73,8 @@ func TestSetFromStdin(t *testing.T) {
 	defer func() { os.Stdin = origStdin }()
 
 	go func() {
-		w.WriteString("stdin_value")
-		w.Close()
+		_, _ = w.WriteString("stdin_value")
+		_ = w.Close()
 	}()
 
 	_, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "STDIN_KEY", "-")
@@ -104,7 +106,9 @@ func TestImportMerge(t *testing.T) {
 
 	// Import a file with a new key
 	envFile := filepath.Join(t.TempDir(), ".env")
-	os.WriteFile(envFile, []byte("NEW_KEY=new_value\n"), 0644)
+	if err := os.WriteFile(envFile, []byte("NEW_KEY=new_value\n"), 0644); err != nil {
+		t.Fatalf("writing env file: %v", err)
+	}
 
 	_, err = runCmd(t, "import", "--dir", dir, "--app", "testapp", "--env", "dev", envFile)
 	if err != nil {

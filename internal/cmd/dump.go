@@ -27,7 +27,7 @@ func newDumpCmd() *cobra.Command {
 
 			keys := s.List()
 			if len(keys) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "No secrets to dump.")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No secrets to dump.")
 				return nil
 			}
 
@@ -46,9 +46,9 @@ func newDumpCmd() *cobra.Command {
 			// Print masked values to terminal.
 			dump := s.Dump()
 			for _, key := range keys {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", key, maskValue(dump[key]))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", key, maskValue(dump[key]))
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Wrote %d secrets to %s\n", len(keys), output)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Wrote %d secrets to %s\n", len(keys), output)
 
 			return nil
 		},

@@ -44,12 +44,22 @@ func TestDump_WritesFileAndMaskedOutput(t *testing.T) {
 	dir := setupTestEnv(t)
 	outDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(outDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(outDir); err != nil {
+		t.Fatalf("chdir to outDir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	// Set some secrets.
-	runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "DB_HOST", "localhost")
-	runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "API_TOKEN", "sk-1234567890abcdef")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "DB_HOST", "localhost"); err != nil {
+		t.Fatalf("set DB_HOST error: %v", err)
+	}
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "API_TOKEN", "sk-1234567890abcdef"); err != nil {
+		t.Fatalf("set API_TOKEN error: %v", err)
+	}
 
 	out, err := runCmd(t, "dump", "--dir", dir, "--app", "myapp", "--env", "dev")
 	if err != nil {
@@ -93,7 +103,9 @@ func TestDump_CustomOutput(t *testing.T) {
 	outDir := t.TempDir()
 	customPath := filepath.Join(outDir, "custom-output.env")
 
-	runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "SECRET", "hunter2")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "SECRET", "hunter2"); err != nil {
+		t.Fatalf("set SECRET error: %v", err)
+	}
 
 	out, err := runCmd(t, "dump", "--dir", dir, "--app", "myapp", "--env", "dev", "--output", customPath)
 	if err != nil {
@@ -117,8 +129,14 @@ func TestDump_EmptyStore(t *testing.T) {
 	dir := setupTestEnv(t)
 	outDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(outDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(outDir); err != nil {
+		t.Fatalf("chdir to outDir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	out, err := runCmd(t, "dump", "--dir", dir, "--app", "emptyapp", "--env", "dev")
 	if err != nil {

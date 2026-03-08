@@ -27,7 +27,9 @@ func newEnvsCmd() *cobra.Command {
 				return err
 			}
 			for _, env := range envs {
-				fmt.Fprintln(cmd.OutOrStdout(), env)
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), env); err != nil {
+					return err
+				}
 			}
 			return nil
 		},

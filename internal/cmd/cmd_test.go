@@ -29,7 +29,9 @@ func setupTestEnv(t *testing.T) string {
 	}
 
 	// Create config.yaml
-	os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("env: dev\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("env: dev\n"), 0644); err != nil {
+		t.Fatalf("writing config.yaml: %v", err)
+	}
 
 	return dir
 }
@@ -103,7 +105,9 @@ func TestDelete(t *testing.T) {
 	dir := setupTestEnv(t)
 
 	// Set then delete
-	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "DEL_KEY", "value")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "DEL_KEY", "value"); err != nil {
+		t.Fatalf("set error: %v", err)
+	}
 	_, err := runCmd(t, "delete", "--dir", dir, "--app", "testapp", "--env", "dev", "DEL_KEY")
 	if err != nil {
 		t.Fatalf("delete error: %v", err)
@@ -128,8 +132,12 @@ func TestDelete_NotFound(t *testing.T) {
 func TestList(t *testing.T) {
 	dir := setupTestEnv(t)
 
-	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "KEY1", "val1")
-	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "KEY2", "val2")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "KEY1", "val1"); err != nil {
+		t.Fatalf("set KEY1 error: %v", err)
+	}
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "KEY2", "val2"); err != nil {
+		t.Fatalf("set KEY2 error: %v", err)
+	}
 
 	out, err := runCmd(t, "list", "--dir", dir, "--app", "testapp", "--env", "dev")
 	if err != nil {
@@ -147,11 +155,21 @@ func TestDump(t *testing.T) {
 	// Use a temp directory for output files so we don't pollute cwd.
 	outDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(outDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(outDir); err != nil {
+		t.Fatalf("chdir to outDir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
-	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "DB_URL", "postgres://localhost")
-	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "API_KEY", "secret")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "DB_URL", "postgres://localhost"); err != nil {
+		t.Fatalf("set DB_URL error: %v", err)
+	}
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "API_KEY", "secret"); err != nil {
+		t.Fatalf("set API_KEY error: %v", err)
+	}
 
 	out, err := runCmd(t, "dump", "--dir", dir, "--app", "testapp", "--env", "dev")
 	if err != nil {
@@ -174,8 +192,12 @@ func TestApps(t *testing.T) {
 	dir := setupTestEnv(t)
 
 	// Create stores for two apps
-	runCmd(t, "set", "--dir", dir, "--app", "app1", "--env", "dev", "K", "V")
-	runCmd(t, "set", "--dir", dir, "--app", "app2", "--env", "prod", "K", "V")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "app1", "--env", "dev", "K", "V"); err != nil {
+		t.Fatalf("set app1 error: %v", err)
+	}
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "app2", "--env", "prod", "K", "V"); err != nil {
+		t.Fatalf("set app2 error: %v", err)
+	}
 
 	out, err := runCmd(t, "apps", "--dir", dir)
 	if err != nil {
@@ -190,8 +212,12 @@ func TestApps(t *testing.T) {
 func TestEnvs(t *testing.T) {
 	dir := setupTestEnv(t)
 
-	runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "K", "V")
-	runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "production", "K", "V")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "K", "V"); err != nil {
+		t.Fatalf("set dev error: %v", err)
+	}
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "production", "K", "V"); err != nil {
+		t.Fatalf("set production error: %v", err)
+	}
 
 	out, err := runCmd(t, "envs", "--dir", dir, "myapp")
 	if err != nil {
@@ -207,8 +233,14 @@ func TestLink(t *testing.T) {
 	lsmDir := setupTestEnv(t)
 	projDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to projDir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	out, err := runCmd(t, "link", "--dir", lsmDir, "myapp")
 	if err != nil {
@@ -240,8 +272,14 @@ func TestLink_RemovesDuplicatePath(t *testing.T) {
 	lsmDir := setupTestEnv(t)
 	projDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(projDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(projDir); err != nil {
+		t.Fatalf("chdir to projDir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Logf("warning: chdir back: %v", err)
+		}
+	}()
 
 	// Link as "oldname"
 	_, err := runCmd(t, "link", "--dir", lsmDir, "oldname")
@@ -273,9 +311,13 @@ func TestSetUpdate(t *testing.T) {
 	dir := setupTestEnv(t)
 
 	// Set initial
-	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "KEY", "first")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "KEY", "first"); err != nil {
+		t.Fatalf("set initial error: %v", err)
+	}
 	// Update
-	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "KEY", "second")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "KEY", "second"); err != nil {
+		t.Fatalf("set update error: %v", err)
+	}
 
 	out, err := runCmd(t, "get", "--dir", dir, "--app", "testapp", "--env", "dev", "KEY")
 	if err != nil {
@@ -290,9 +332,13 @@ func TestMultipleEnvs(t *testing.T) {
 	dir := setupTestEnv(t)
 
 	// Set in dev
-	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "DB", "dev_db")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "DB", "dev_db"); err != nil {
+		t.Fatalf("set dev error: %v", err)
+	}
 	// Set in prod
-	runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "production", "DB", "prod_db")
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "production", "DB", "prod_db"); err != nil {
+		t.Fatalf("set prod error: %v", err)
+	}
 
 	// Get dev
 	out, _ := runCmd(t, "get", "--dir", dir, "--app", "testapp", "--env", "dev", "DB")

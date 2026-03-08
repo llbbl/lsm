@@ -43,10 +43,12 @@ func newEditCmd() *cobra.Command {
 
 			content := s.RawContent()
 			if _, err := tmpFile.WriteString(content); err != nil {
-				tmpFile.Close()
+				_ = tmpFile.Close()
 				return fmt.Errorf("writing temp file: %w", err)
 			}
-			tmpFile.Close()
+			if err := tmpFile.Close(); err != nil {
+				return fmt.Errorf("closing temp file: %w", err)
+			}
 
 			// Open editor
 			editorCmd := exec.Command(editor, tmpPath)

@@ -49,7 +49,9 @@ func TestEditCmd_EditorModifiesContent(t *testing.T) {
 	// Create a script that appends a new line to the file
 	scriptDir := t.TempDir()
 	scriptPath := filepath.Join(scriptDir, "editor.sh")
-	os.WriteFile(scriptPath, []byte("#!/bin/sh\nprintf '\\nNEW_KEY=new_val\\n' >> \"$1\"\n"), 0755)
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nprintf '\\nNEW_KEY=new_val\\n' >> \"$1\"\n"), 0755); err != nil {
+		t.Fatalf("writing editor script: %v", err)
+	}
 
 	t.Setenv("EDITOR", scriptPath)
 

@@ -37,7 +37,7 @@ func newGetCmd() *cobra.Command {
 			}
 
 			// Raw output, no newline
-			fmt.Fprint(cmd.OutOrStdout(), val)
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), val)
 			return nil
 		},
 	}
