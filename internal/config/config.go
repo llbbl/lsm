@@ -20,7 +20,8 @@ type Config struct {
 
 // GlobalConfig represents ~/.lsm/config.yaml
 type GlobalConfig struct {
-	Env string `yaml:"env"`
+	Env  string            `yaml:"env"`
+	Apps map[string]string `yaml:"apps,omitempty"` // app name -> absolute path
 }
 
 // ProjectConfig represents .lsm.yaml in a project directory.
@@ -52,6 +53,10 @@ func Resolve(flagDir, flagApp, flagEnv string) (*Config, error) {
 	projCfgLoaded := false
 	cwd, err := os.Getwd()
 	if err == nil {
+		// Resolve symlinks so registry paths match (e.g., /tmp -> /private/tmp on macOS)
+		if resolved, err := filepath.EvalSymlinks(cwd); err == nil {
+			cwd = resolved
+		}
 		projPath := filepath.Join(cwd, ".lsm.yaml")
 		if data, err := os.ReadFile(projPath); err == nil {
 			if err := yaml.Unmarshal(data, &projCfg); err == nil {
@@ -69,11 +74,13 @@ func Resolve(flagDir, flagApp, flagEnv string) (*Config, error) {
 		}
 	}
 
-	// Resolve app: flag > project config > directory name
+	// Resolve app: flag > project config > registry lookup > directory name
 	if flagApp != "" {
 		cfg.App = flagApp
 	} else if projCfgLoaded && projCfg.App != "" {
 		cfg.App = projCfg.App
+	} else if regApp := ResolveAppFromRegistry(&globalCfg, cwd); regApp != "" {
+		cfg.App = regApp
 	} else if cwd != "" {
 		cfg.App = filepath.Base(cwd)
 	} else {
@@ -109,6 +116,27 @@ func LoadGlobalConfig(dir string) (*GlobalConfig, error) {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
 	return &cfg, nil
+}
+
+// SaveGlobalConfig writes the global config.yaml in the lsm directory.
+func SaveGlobalConfig(dir string, cfg *GlobalConfig) error {
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "config.yaml"), data, 0600)
+}
+
+// ResolveAppFromRegistry performs a reverse lookup on the Apps map,
+// returning the app name whose registered path matches cwd exactly.
+// Returns empty string if no match is found.
+func ResolveAppFromRegistry(cfg *GlobalConfig, cwd string) string {
+	for app, path := range cfg.Apps {
+		if path == cwd {
+			return app
+		}
+	}
+	return ""
 }
 
 // SaveProjectConfig writes a .lsm.yaml file in the given directory.

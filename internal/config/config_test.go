@@ -264,3 +264,153 @@ func TestLoadGlobalConfig_Valid(t *testing.T) {
 		t.Errorf("Env = %q, want %q", cfg.Env, "production")
 	}
 }
+
+func TestSaveGlobalConfig_Roundtrip(t *testing.T) {
+	dir := t.TempDir()
+	original := &GlobalConfig{
+		Env: "dev",
+		Apps: map[string]string{
+			"webapp":  "/home/user/projects/webapp",
+			"api-svc": "/home/user/projects/api",
+		},
+	}
+
+	if err := SaveGlobalConfig(dir, original); err != nil {
+		t.Fatalf("SaveGlobalConfig() error: %v", err)
+	}
+
+	loaded, err := LoadGlobalConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig() error: %v", err)
+	}
+	if loaded.Env != original.Env {
+		t.Errorf("Env = %q, want %q", loaded.Env, original.Env)
+	}
+	if len(loaded.Apps) != len(original.Apps) {
+		t.Fatalf("Apps length = %d, want %d", len(loaded.Apps), len(original.Apps))
+	}
+	for k, v := range original.Apps {
+		if loaded.Apps[k] != v {
+			t.Errorf("Apps[%q] = %q, want %q", k, loaded.Apps[k], v)
+		}
+	}
+}
+
+func TestSaveGlobalConfig_NilApps(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &GlobalConfig{Env: "prod"}
+
+	if err := SaveGlobalConfig(dir, cfg); err != nil {
+		t.Fatalf("SaveGlobalConfig() error: %v", err)
+	}
+
+	loaded, err := LoadGlobalConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig() error: %v", err)
+	}
+	if loaded.Env != "prod" {
+		t.Errorf("Env = %q, want %q", loaded.Env, "prod")
+	}
+	if len(loaded.Apps) != 0 {
+		t.Errorf("Apps = %v, want empty", loaded.Apps)
+	}
+}
+
+func TestResolveAppFromRegistry_MatchFound(t *testing.T) {
+	cfg := &GlobalConfig{
+		Apps: map[string]string{
+			"webapp": "/home/user/webapp",
+			"api":    "/home/user/api",
+		},
+	}
+	got := ResolveAppFromRegistry(cfg, "/home/user/api")
+	if got != "api" {
+		t.Errorf("ResolveAppFromRegistry() = %q, want %q", got, "api")
+	}
+}
+
+func TestResolveAppFromRegistry_NoMatch(t *testing.T) {
+	cfg := &GlobalConfig{
+		Apps: map[string]string{
+			"webapp": "/home/user/webapp",
+		},
+	}
+	got := ResolveAppFromRegistry(cfg, "/home/user/other")
+	if got != "" {
+		t.Errorf("ResolveAppFromRegistry() = %q, want empty", got)
+	}
+}
+
+func TestResolveAppFromRegistry_NilMap(t *testing.T) {
+	cfg := &GlobalConfig{}
+	got := ResolveAppFromRegistry(cfg, "/some/path")
+	if got != "" {
+		t.Errorf("ResolveAppFromRegistry() = %q, want empty", got)
+	}
+}
+
+func TestResolveAppFromRegistry_EmptyMap(t *testing.T) {
+	cfg := &GlobalConfig{Apps: map[string]string{}}
+	got := ResolveAppFromRegistry(cfg, "/some/path")
+	if got != "" {
+		t.Errorf("ResolveAppFromRegistry() = %q, want empty", got)
+	}
+}
+
+func TestResolve_RegistryLookup(t *testing.T) {
+	lsmDir := t.TempDir()
+	projDir := t.TempDir()
+
+	// Resolve symlinks to match what Resolve() will see for cwd
+	resolvedProjDir, err := filepath.EvalSymlinks(projDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks() error: %v", err)
+	}
+
+	// Write global config with apps registry
+	configContent := "env: dev\napps:\n  myregisteredapp: " + resolvedProjDir + "\n"
+	os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte(configContent), 0644)
+
+	origDir, _ := os.Getwd()
+	os.Chdir(projDir)
+	defer os.Chdir(origDir)
+
+	cfg, err := Resolve(lsmDir, "", "")
+	if err != nil {
+		t.Fatalf("Resolve() error: %v", err)
+	}
+	if cfg.App != "myregisteredapp" {
+		t.Errorf("App = %q, want %q", cfg.App, "myregisteredapp")
+	}
+}
+
+func TestResolve_ProjectConfigOverridesRegistry(t *testing.T) {
+	lsmDir := t.TempDir()
+	projDir := t.TempDir()
+
+	// Resolve symlinks to match what Resolve() will see for cwd
+	resolvedProjDir, err := filepath.EvalSymlinks(projDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks() error: %v", err)
+	}
+
+	// Write global config with registry entry for this dir
+	configContent := "env: dev\napps:\n  registryapp: " + resolvedProjDir + "\n"
+	os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte(configContent), 0644)
+
+	// Write project config that should take priority
+	os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("app: projapp\nenv: staging"), 0644)
+
+	origDir, _ := os.Getwd()
+	os.Chdir(projDir)
+	defer os.Chdir(origDir)
+
+	cfg, err := Resolve(lsmDir, "", "")
+	if err != nil {
+		t.Fatalf("Resolve() error: %v", err)
+	}
+	// Project config should win over registry
+	if cfg.App != "projapp" {
+		t.Errorf("App = %q, want %q (project config should override registry)", cfg.App, "projapp")
+	}
+}

@@ -194,31 +194,68 @@ func TestEnvs(t *testing.T) {
 }
 
 func TestLink(t *testing.T) {
-	dir := t.TempDir()
+	lsmDir := setupTestEnv(t)
+	projDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(dir)
+	os.Chdir(projDir)
 	defer os.Chdir(origDir)
 
-	out, err := runCmd(t, "link", "myapp", "staging")
+	out, err := runCmd(t, "link", "--dir", lsmDir, "myapp")
 	if err != nil {
 		t.Fatalf("link error: %v", err)
 	}
 
-	if !strings.Contains(out, "Created .lsm.yaml") {
+	if !strings.Contains(out, "Linked myapp") {
 		t.Errorf("unexpected output: %s", out)
 	}
+	if !strings.Contains(out, projDir) {
+		t.Errorf("output missing path %q: %s", projDir, out)
+	}
 
-	// Verify file exists
-	data, err := os.ReadFile(filepath.Join(dir, ".lsm.yaml"))
+	// Verify config.yaml has the app entry
+	data, err := os.ReadFile(filepath.Join(lsmDir, "config.yaml"))
 	if err != nil {
-		t.Fatalf("reading .lsm.yaml: %v", err)
+		t.Fatalf("reading config.yaml: %v", err)
 	}
 	content := string(data)
-	if !strings.Contains(content, "app: myapp") {
-		t.Errorf(".lsm.yaml missing app: %s", content)
+	if !strings.Contains(content, "myapp") {
+		t.Errorf("config.yaml missing app name: %s", content)
 	}
-	if !strings.Contains(content, "env: staging") {
-		t.Errorf(".lsm.yaml missing env: %s", content)
+	if !strings.Contains(content, projDir) {
+		t.Errorf("config.yaml missing path %q: %s", projDir, content)
+	}
+}
+
+func TestLink_RemovesDuplicatePath(t *testing.T) {
+	lsmDir := setupTestEnv(t)
+	projDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(projDir)
+	defer os.Chdir(origDir)
+
+	// Link as "oldname"
+	_, err := runCmd(t, "link", "--dir", lsmDir, "oldname")
+	if err != nil {
+		t.Fatalf("first link error: %v", err)
+	}
+
+	// Re-link same directory as "newname"
+	_, err = runCmd(t, "link", "--dir", lsmDir, "newname")
+	if err != nil {
+		t.Fatalf("second link error: %v", err)
+	}
+
+	// Verify "oldname" is removed, "newname" exists
+	data, err := os.ReadFile(filepath.Join(lsmDir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("reading config.yaml: %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "oldname") {
+		t.Errorf("config.yaml still contains oldname: %s", content)
+	}
+	if !strings.Contains(content, "newname") {
+		t.Errorf("config.yaml missing newname: %s", content)
 	}
 }
 

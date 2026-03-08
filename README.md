@@ -2,17 +2,6 @@
 
 A lightweight CLI for managing per-app, per-environment secrets encrypted with [age](https://github.com/FiloSottile/age). No remote services, no billing, no accounts.
 
-## Why
-
-| Tool | Problem |
-|------|---------|
-| Doppler | 10 project free limit, $21/mo after |
-| Infisical | 3 project free limit, $18/identity/mo |
-| GCP Secret Manager | Flat namespace, can't reuse env var names across apps |
-| `.env` files | Plaintext on disk, leak on screenshare or git |
-
-lsm encrypts secrets locally with age. Each app gets its own encrypted file. Secrets are only decrypted into subprocesses or stdout.
-
 ## Install
 
 ```bash
