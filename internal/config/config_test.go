@@ -44,15 +44,7 @@ func TestResolve_ProjectConfigOverridesDefaults(t *testing.T) {
 	}
 
 	// Change to project dir
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to project dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	cfg, err := Resolve(lsmDir, "", "")
 	if err != nil {
@@ -75,15 +67,7 @@ func TestResolve_GlobalConfigForEnv(t *testing.T) {
 		t.Fatalf("writing global config: %v", err)
 	}
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to project dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	cfg, err := Resolve(lsmDir, "", "")
 	if err != nil {
@@ -106,15 +90,7 @@ func TestResolve_FlagOverridesProjectConfig(t *testing.T) {
 		t.Fatalf("writing project config: %v", err)
 	}
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to project dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	cfg, err := Resolve(lsmDir, "flagapp", "production")
 	if err != nil {
@@ -132,15 +108,7 @@ func TestResolve_NoEnvAvailable(t *testing.T) {
 	lsmDir := t.TempDir()
 	projDir := t.TempDir()
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to project dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	_, err := Resolve(lsmDir, "app", "")
 	if err == nil {
@@ -152,15 +120,7 @@ func TestResolve_DefaultDir(t *testing.T) {
 	// With no flags, dir defaults to ~/.lsm
 	// We just test that it doesn't error with explicit app/env
 	projDir := t.TempDir()
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to project dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	cfg, err := Resolve("", "testapp", "dev")
 	if err != nil {
@@ -218,15 +178,7 @@ func TestResolve_MalformedProjectConfig(t *testing.T) {
 		t.Fatalf("writing project config: %v", err)
 	}
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to project dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	// Should not crash; malformed project config is silently ignored
 	cfg, err := Resolve(lsmDir, "", "")
@@ -248,15 +200,7 @@ func TestResolve_MalformedGlobalConfig(t *testing.T) {
 		t.Fatalf("writing global config: %v", err)
 	}
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to project dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	// Should return error for malformed global config
 	_, err := Resolve(lsmDir, "app", "")
@@ -436,15 +380,7 @@ func TestResolve_RegistryLookup(t *testing.T) {
 		t.Fatalf("writing global config: %v", err)
 	}
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to project dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	cfg, err := Resolve(lsmDir, "", "")
 	if err != nil {
@@ -476,15 +412,7 @@ func TestResolve_ProjectConfigOverridesRegistry(t *testing.T) {
 		t.Fatalf("writing project config: %v", err)
 	}
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to project dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	cfg, err := Resolve(lsmDir, "", "")
 	if err != nil {

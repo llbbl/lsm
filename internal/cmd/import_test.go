@@ -103,18 +103,7 @@ func TestImport_AutoDetectSingleFile(t *testing.T) {
 		t.Fatalf("writing .env: %v", err)
 	}
 
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getting cwd: %v", err)
-	}
-	if err := os.Chdir(workDir); err != nil {
-		t.Fatalf("chdir to workDir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(workDir)
 
 	out, err := runCmd(t, "import", "--dir", dir, "--app", "testapp", "--env", "dev")
 	if err != nil {
@@ -149,18 +138,7 @@ func TestImport_AutoDetectMultipleFiles(t *testing.T) {
 		t.Fatalf("writing .env.local: %v", err)
 	}
 
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getting cwd: %v", err)
-	}
-	if err := os.Chdir(workDir); err != nil {
-		t.Fatalf("chdir to workDir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(workDir)
 
 	out, err := runCmd(t, "import", "--dir", dir, "--app", "testapp", "--env", "dev")
 	if err == nil {
@@ -183,20 +161,9 @@ func TestImport_AutoDetectNoFiles(t *testing.T) {
 	dir := setupTestEnv(t)
 	workDir := t.TempDir()
 
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getting cwd: %v", err)
-	}
-	if err := os.Chdir(workDir); err != nil {
-		t.Fatalf("chdir to workDir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(workDir)
 
-	_, err = runCmd(t, "import", "--dir", dir, "--app", "testapp", "--env", "dev")
+	_, err := runCmd(t, "import", "--dir", dir, "--app", "testapp", "--env", "dev")
 	if err == nil {
 		t.Fatal("expected error for no .env files")
 	}
@@ -219,18 +186,7 @@ func TestImport_AutoDetectSkipsExample(t *testing.T) {
 		t.Fatalf("writing .env.example: %v", err)
 	}
 
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getting cwd: %v", err)
-	}
-	if err := os.Chdir(workDir); err != nil {
-		t.Fatalf("chdir to workDir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(workDir)
 
 	out, err := runCmd(t, "import", "--dir", dir, "--app", "testapp", "--env", "dev")
 	if err != nil {

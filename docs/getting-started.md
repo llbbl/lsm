@@ -136,7 +136,9 @@ lsm list
 lsm dump
 ```
 
-This writes the real secrets to a file (`myapp.dev.env` by default) and shows masked values in the terminal. Use `--output` to customize the filename:
+This writes the real secrets to `.env` and shows masked values in the terminal. If `.env` already exists, you'll be prompted before overwriting. If you're in a git repo, lsm automatically adds `.env` to `.gitignore`.
+
+Use `--output` to customize the filename:
 
 ```bash
 lsm dump --output .env.deploy

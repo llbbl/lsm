@@ -123,6 +123,69 @@ func maskValue(value string) string {
 	}
 }
 
+// isTerminal checks if stdin is a terminal (character device).
+func isTerminal() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
+}
+
+// isInGitRepo checks if the current directory is inside a git repository
+// by walking up the directory tree looking for a .git directory.
+func isInGitRepo() bool {
+	dir, err := os.Getwd()
+	if err != nil {
+		return false
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return false
+		}
+		dir = parent
+	}
+}
+
+// ensureGitignored checks if filename is in the cwd's .gitignore.
+// If not, it appends the filename. Returns true if .gitignore was modified.
+// Only checks/modifies .gitignore in the current directory.
+func ensureGitignored(filename string) (bool, error) {
+	gitignorePath := filepath.Join(".", ".gitignore")
+
+	// Read existing .gitignore
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+
+	content := string(data)
+
+	// Check if filename is already listed (exact line match)
+	for line := range strings.SplitSeq(content, "\n") {
+		if strings.TrimSpace(line) == filename {
+			return false, nil
+		}
+	}
+
+	// Append to .gitignore
+	var newContent string
+	if len(content) > 0 && !strings.HasSuffix(content, "\n") {
+		newContent = content + "\n" + filename + "\n"
+	} else {
+		newContent = content + filename + "\n"
+	}
+
+	if err := os.WriteFile(gitignorePath, []byte(newContent), 0644); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // secureRemove overwrites a file with zeros before deleting it.
 func secureRemove(path string) error {
 	info, err := os.Stat(path)

@@ -123,13 +123,14 @@ lsm dump --env production
 ```
 
 **Default behavior:**
-- Writes real `KEY=VALUE` content to `{app}.{env}.env` in the current directory
+- Writes real `KEY=VALUE` content to `.env` in the current directory
 - Prints masked output to the terminal (e.g., `API_KEY=sk********`)
-- Shows a confirmation message with the file path
+- Prompts before overwriting an existing `.env` file
+- Automatically adds `.env` to `.gitignore` if you're in a git repo (and it's not already ignored)
 
 | Flag | Description |
 |------|-------------|
-| `--output`, `-o` | Custom output file path |
+| `--output`, `-o` | Custom output file path (default: `.env`) |
 
 **Masking rules:** Short values are fully masked. Longer values show the first 1-2 characters. Very long values are capped at 10 characters of masked output.
 

@@ -154,15 +154,7 @@ func TestDump(t *testing.T) {
 
 	// Use a temp directory for output files so we don't pollute cwd.
 	outDir := t.TempDir()
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(outDir); err != nil {
-		t.Fatalf("chdir to outDir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(outDir)
 
 	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "DB_URL", "postgres://localhost"); err != nil {
 		t.Fatalf("set DB_URL error: %v", err)
@@ -183,7 +175,7 @@ func TestDump(t *testing.T) {
 	if !strings.Contains(out, "DB_URL=") {
 		t.Errorf("dump missing DB_URL key: %s", out)
 	}
-	if !strings.Contains(out, "Wrote 2 secrets") {
+	if !strings.Contains(out, "Wrote 2 secrets to .env") {
 		t.Errorf("dump missing write confirmation: %s", out)
 	}
 }
@@ -232,15 +224,7 @@ func TestEnvs(t *testing.T) {
 func TestLink(t *testing.T) {
 	lsmDir := setupTestEnv(t)
 	projDir := t.TempDir()
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to projDir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	out, err := runCmd(t, "link", "--dir", lsmDir, "myapp")
 	if err != nil {
@@ -271,15 +255,7 @@ func TestLink(t *testing.T) {
 func TestLink_RemovesDuplicatePath(t *testing.T) {
 	lsmDir := setupTestEnv(t)
 	projDir := t.TempDir()
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(projDir); err != nil {
-		t.Fatalf("chdir to projDir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(projDir)
 
 	// Link as "oldname"
 	_, err := runCmd(t, "link", "--dir", lsmDir, "oldname")

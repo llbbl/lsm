@@ -4,6 +4,10 @@ go = "1.24"
 [tasks.build]
 run = "go build ./cmd/lsm"
 
+[tasks.local]
+run = "go build -o ~/.local/bin/lsm ./cmd/lsm"
+description = "Build and install lsm to ~/.local/bin"
+
 [tasks.test]
 run = "go test ./..."
 

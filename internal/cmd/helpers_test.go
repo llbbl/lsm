@@ -6,6 +6,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/llbbl/lsm/internal/config"
@@ -284,4 +285,87 @@ func TestSecureRemove(t *testing.T) {
 			t.Errorf("secureRemove() on missing file: %v", err)
 		}
 	})
+}
+
+func TestEnsureGitignored_NewFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	added, err := ensureGitignored(".env")
+	if err != nil {
+		t.Fatalf("ensureGitignored: %v", err)
+	}
+	if !added {
+		t.Error("expected .gitignore to be created")
+	}
+
+	data, err := os.ReadFile(".gitignore")
+	if err != nil {
+		t.Fatalf("reading .gitignore: %v", err)
+	}
+	if !strings.Contains(string(data), ".env") {
+		t.Errorf(".gitignore missing .env: %s", data)
+	}
+}
+
+func TestEnsureGitignored_AlreadyPresent(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	if err := os.WriteFile(".gitignore", []byte(".env\nnode_modules\n"), 0644); err != nil {
+		t.Fatalf("writing .gitignore: %v", err)
+	}
+
+	added, err := ensureGitignored(".env")
+	if err != nil {
+		t.Fatalf("ensureGitignored: %v", err)
+	}
+	if added {
+		t.Error("should not modify .gitignore when entry exists")
+	}
+}
+
+func TestEnsureGitignored_AppendsToExisting(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	if err := os.WriteFile(".gitignore", []byte("node_modules\n"), 0644); err != nil {
+		t.Fatalf("writing .gitignore: %v", err)
+	}
+
+	added, err := ensureGitignored(".env")
+	if err != nil {
+		t.Fatalf("ensureGitignored: %v", err)
+	}
+	if !added {
+		t.Error("expected .env to be added")
+	}
+
+	data, err := os.ReadFile(".gitignore")
+	if err != nil {
+		t.Fatalf("reading .gitignore: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "node_modules") {
+		t.Error("lost existing content")
+	}
+	if !strings.Contains(content, ".env") {
+		t.Error("missing .env entry")
+	}
+}
+
+func TestIsInGitRepo(t *testing.T) {
+	// Current directory (the lsm project) should be a git repo
+	if !isInGitRepo() {
+		t.Error("expected to be in a git repo")
+	}
+}
+
+func TestIsInGitRepo_NotARepo(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	if isInGitRepo() {
+		t.Error("temp dir should not be a git repo")
+	}
 }

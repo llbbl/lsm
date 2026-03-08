@@ -43,15 +43,7 @@ func TestMaskValue(t *testing.T) {
 func TestDump_WritesFileAndMaskedOutput(t *testing.T) {
 	dir := setupTestEnv(t)
 	outDir := t.TempDir()
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(outDir); err != nil {
-		t.Fatalf("chdir to outDir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(outDir)
 
 	// Set some secrets.
 	if _, err := runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "DB_HOST", "localhost"); err != nil {
@@ -79,12 +71,12 @@ func TestDump_WritesFileAndMaskedOutput(t *testing.T) {
 	if !strings.Contains(out, "API_TOKEN=") {
 		t.Errorf("terminal output missing API_TOKEN key: %s", out)
 	}
-	if !strings.Contains(out, "Wrote 2 secrets to myapp.dev.env") {
+	if !strings.Contains(out, "Wrote 2 secrets to .env") {
 		t.Errorf("missing write confirmation: %s", out)
 	}
 
 	// File should contain real unmasked values.
-	filePath := filepath.Join(outDir, "myapp.dev.env")
+	filePath := filepath.Join(outDir, ".env")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		t.Fatalf("reading output file: %v", err)
@@ -128,15 +120,7 @@ func TestDump_CustomOutput(t *testing.T) {
 func TestDump_EmptyStore(t *testing.T) {
 	dir := setupTestEnv(t)
 	outDir := t.TempDir()
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(outDir); err != nil {
-		t.Fatalf("chdir to outDir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Logf("warning: chdir back: %v", err)
-		}
-	}()
+	t.Chdir(outDir)
 
 	out, err := runCmd(t, "dump", "--dir", dir, "--app", "emptyapp", "--env", "dev")
 	if err != nil {
@@ -148,8 +132,95 @@ func TestDump_EmptyStore(t *testing.T) {
 	}
 
 	// No file should be created.
-	filePath := filepath.Join(outDir, "emptyapp.dev.env")
+	filePath := filepath.Join(outDir, ".env")
 	if _, err := os.Stat(filePath); err == nil {
 		t.Error("file should not be created for empty store")
+	}
+}
+
+func TestDump_GitignoreAutoUpdate(t *testing.T) {
+	dir := setupTestEnv(t)
+	outDir := t.TempDir()
+
+	// Initialize a git repo in outDir
+	if err := os.MkdirAll(filepath.Join(outDir, ".git"), 0755); err != nil {
+		t.Fatalf("creating .git: %v", err)
+	}
+
+	t.Chdir(outDir)
+
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "KEY", "val"); err != nil {
+		t.Fatalf("set error: %v", err)
+	}
+
+	out, err := runCmd(t, "dump", "--dir", dir, "--app", "myapp", "--env", "dev")
+	if err != nil {
+		t.Fatalf("dump error: %v", err)
+	}
+
+	if !strings.Contains(out, "Added .env to .gitignore") {
+		t.Errorf("expected gitignore notification: %s", out)
+	}
+
+	data, err := os.ReadFile(filepath.Join(outDir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("reading .gitignore: %v", err)
+	}
+	if !strings.Contains(string(data), ".env") {
+		t.Errorf(".gitignore missing .env: %s", data)
+	}
+}
+
+func TestDump_GitignoreAlreadyIgnored(t *testing.T) {
+	dir := setupTestEnv(t)
+	outDir := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(outDir, ".git"), 0755); err != nil {
+		t.Fatalf("creating .git: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(outDir, ".gitignore"), []byte(".env\n"), 0644); err != nil {
+		t.Fatalf("writing .gitignore: %v", err)
+	}
+
+	t.Chdir(outDir)
+
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "KEY", "val"); err != nil {
+		t.Fatalf("set error: %v", err)
+	}
+
+	out, err := runCmd(t, "dump", "--dir", dir, "--app", "myapp", "--env", "dev")
+	if err != nil {
+		t.Fatalf("dump error: %v", err)
+	}
+
+	if strings.Contains(out, "Added .env to .gitignore") {
+		t.Errorf("should not report adding when already ignored: %s", out)
+	}
+}
+
+func TestDump_NoGitRepo(t *testing.T) {
+	dir := setupTestEnv(t)
+	outDir := t.TempDir()
+	// No .git directory
+
+	t.Chdir(outDir)
+
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "myapp", "--env", "dev", "KEY", "val"); err != nil {
+		t.Fatalf("set error: %v", err)
+	}
+
+	out, err := runCmd(t, "dump", "--dir", dir, "--app", "myapp", "--env", "dev")
+	if err != nil {
+		t.Fatalf("dump error: %v", err)
+	}
+
+	// Should NOT mention gitignore
+	if strings.Contains(out, "gitignore") {
+		t.Errorf("should not mention gitignore outside git repo: %s", out)
+	}
+
+	// File should still be created
+	if _, err := os.Stat(filepath.Join(outDir, ".env")); err != nil {
+		t.Errorf(".env not created: %v", err)
 	}
 }

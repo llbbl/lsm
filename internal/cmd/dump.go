@@ -4,8 +4,12 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -34,7 +38,23 @@ func newDumpCmd() *cobra.Command {
 			// Determine output file path.
 			output, _ := cmd.Flags().GetString("output")
 			if output == "" {
-				output = fmt.Sprintf("%s.%s.env", cfg.App, cfg.Env)
+				output = ".env"
+			}
+
+			// Check if output file already exists.
+			if _, err := os.Stat(output); err == nil {
+				// File exists — prompt for confirmation.
+				if isTerminal() {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s already exists. Overwrite? [y/N] ", output)
+					scanner := bufio.NewScanner(cmd.InOrStdin())
+					if scanner.Scan() {
+						response := strings.TrimSpace(strings.ToLower(scanner.Text()))
+						if response != "y" && response != "yes" {
+							_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+							return nil
+						}
+					}
+				}
 			}
 
 			// Write real .env content to file.
@@ -50,11 +70,21 @@ func newDumpCmd() *cobra.Command {
 			}
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Wrote %d secrets to %s\n", len(keys), output)
 
+			// Auto-update .gitignore if in a git repo.
+			if isInGitRepo() {
+				added, err := ensureGitignored(filepath.Base(output))
+				if err != nil {
+					slog.Debug("failed to update .gitignore", "error", err)
+				} else if added {
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Added %s to .gitignore\n", filepath.Base(output))
+				}
+			}
+
 			return nil
 		},
 	}
 
-	cmd.Flags().StringP("output", "o", "", "output file path (default: {app}.{env}.env)")
+	cmd.Flags().StringP("output", "o", "", "output file path (default: .env)")
 
 	return cmd
 }
