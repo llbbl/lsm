@@ -146,6 +146,16 @@ lsm dump --output .env.deploy
 
 This is useful for pasting into deployment platforms like Coolify, Railway, or Vercel.
 
+### Clean up .env files
+
+After importing secrets, remove the plaintext `.env` files:
+
+```bash
+lsm clean
+```
+
+This verifies every key in each `.env` file exists in the encrypted store before removing it. Files with missing keys are skipped with a warning. Use `--force` to skip the confirmation prompt.
+
 ## 6. Working with Multiple Environments
 
 By default, lsm uses the `dev` environment (set in `~/.lsm/config.yaml`). Override with `--env`:
@@ -188,7 +198,8 @@ lsm dump --env production
 # Start a new project
 cd ~/Web/newproject
 lsm link newproject
-lsm import .env.example
+lsm import .env
+lsm clean --force          # remove plaintext .env after importing
 lsm set SECRET_KEY $(openssl rand -hex 32)
 ```
 

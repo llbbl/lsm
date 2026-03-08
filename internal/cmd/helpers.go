@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"filippo.io/age"
@@ -184,6 +185,36 @@ func ensureGitignored(filename string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// findEnvFiles looks for common .env files in the current directory.
+func findEnvFiles() ([]string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := os.ReadDir(cwd)
+	if err != nil {
+		return nil, err
+	}
+
+	var found []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if name == ".env" || strings.HasPrefix(name, ".env.") {
+			// Skip .env.example files — they typically don't contain real secrets
+			if strings.HasSuffix(name, ".example") || strings.HasSuffix(name, ".sample") || strings.HasSuffix(name, ".template") {
+				continue
+			}
+			found = append(found, filepath.Join(cwd, name))
+		}
+	}
+	sort.Strings(found)
+	return found, nil
 }
 
 // secureRemove overwrites a file with zeros before deleting it.

@@ -184,6 +184,28 @@ Supports:
 
 ---
 
+## clean
+
+Remove `.env` files from the current directory after verifying all their secrets exist in the encrypted store.
+
+```bash
+cd ~/Web/myapp
+lsm clean
+lsm clean --force    # skip confirmation prompt
+```
+
+For each `.env` file found, lsm parses every `KEY=VALUE` pair and checks that the key exists in the encrypted store. Files where all keys are present are safe to remove. Files with any missing keys are skipped with a warning listing the missing keys.
+
+Skips `.env.example`, `.env.sample`, and `.env.template` files (same filtering as `import`).
+
+Deletion uses secure overwrite (zero-fill before remove) so secret values don't linger on disk.
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip confirmation prompt |
+
+---
+
 ## apps
 
 List all app namespaces that have encrypted secret files.
