@@ -329,6 +329,22 @@ func TestMultipleEnvs(t *testing.T) {
 	}
 }
 
+func TestVersion(t *testing.T) {
+	out, err := runCmd(t, "--version")
+	if err != nil {
+		t.Fatalf("version error: %v", err)
+	}
+	if !strings.Contains(out, Version) {
+		t.Errorf("version output = %q, want it to contain %q", out, Version)
+	}
+}
+
+func TestVersion_DefaultIsDev(t *testing.T) {
+	if Version != "dev" {
+		t.Errorf("default Version = %q, want %q", Version, "dev")
+	}
+}
+
 func TestResolveWithPositional_SingleExtraArg(t *testing.T) {
 	dir := setupTestEnv(t)
 

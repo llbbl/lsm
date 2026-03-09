@@ -5,7 +5,7 @@ go = "1.24"
 run = "go build ./cmd/lsm"
 
 [tasks.local]
-run = "go build -o ~/.local/bin/lsm ./cmd/lsm"
+run = 'go build -ldflags="-s -w -X github.com/llbbl/lsm/internal/cmd.Version=$(cat VERSION)" -o ~/.local/bin/lsm ./cmd/lsm'
 description = "Build and install lsm to ~/.local/bin"
 
 [tasks.test]
@@ -20,3 +20,70 @@ run = "git cliff -o CHANGELOG.md"
 [tasks.changelog-preview]
 run = "git cliff --unreleased"
 
+# Release paths:
+#   Automatic: PR merge → auto-release.yml determines bump type from commits → tags → release.yml builds
+#   Manual:    mise run release-patch/minor/major → bumps VERSION, commits, tags, pushes → release.yml builds
+
+[tasks.version]
+run = "cat VERSION"
+description = "Show current version"
+
+[tasks.bump-patch]
+description = "Increment patch version, commit, and tag"
+run = """
+VERSION=$(cat VERSION)
+IFS='.' read -r major minor patch <<< "$VERSION"
+patch=$((patch + 1))
+NEW="${major}.${minor}.${patch}"
+echo "$NEW" > VERSION
+git add VERSION
+git commit -m "chore(release): bump version to $NEW"
+git tag -a "v$NEW" -m "Release v$NEW"
+echo "Bumped to $NEW (v$NEW)"
+"""
+
+[tasks.bump-minor]
+description = "Increment minor version, reset patch, commit, and tag"
+run = """
+VERSION=$(cat VERSION)
+IFS='.' read -r major minor patch <<< "$VERSION"
+minor=$((minor + 1))
+patch=0
+NEW="${major}.${minor}.${patch}"
+echo "$NEW" > VERSION
+git add VERSION
+git commit -m "chore(release): bump version to $NEW"
+git tag -a "v$NEW" -m "Release v$NEW"
+echo "Bumped to $NEW (v$NEW)"
+"""
+
+[tasks.bump-major]
+description = "Increment major version, reset minor and patch, commit, and tag"
+run = """
+VERSION=$(cat VERSION)
+IFS='.' read -r major minor patch <<< "$VERSION"
+major=$((major + 1))
+minor=0
+patch=0
+NEW="${major}.${minor}.${patch}"
+echo "$NEW" > VERSION
+git add VERSION
+git commit -m "chore(release): bump version to $NEW"
+git tag -a "v$NEW" -m "Release v$NEW"
+echo "Bumped to $NEW (v$NEW)"
+"""
+
+[tasks.release-patch]
+description = "Bump patch version and push with tags"
+depends = ["bump-patch"]
+run = "git push origin main --follow-tags"
+
+[tasks.release-minor]
+description = "Bump minor version and push with tags"
+depends = ["bump-minor"]
+run = "git push origin main --follow-tags"
+
+[tasks.release-major]
+description = "Bump major version and push with tags"
+depends = ["bump-major"]
+run = "git push origin main --follow-tags"

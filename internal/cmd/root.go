@@ -10,6 +10,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Version is set at build time via ldflags.
+var Version = "dev"
+
 var (
 	flagDir string
 	flagApp string
@@ -19,6 +22,7 @@ var (
 func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:           "lsm",
+		Version:       Version,
 		Short:         "Local Secrets Manager - per-app encrypted secrets with age",
 		Long:          "lsm manages per-app, per-environment secrets encrypted with age.\nNo remote services, no billing, no accounts.",
 		SilenceUsage:  true,

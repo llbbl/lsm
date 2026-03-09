@@ -1,9 +1,8 @@
 name: Release
 
 on:
-  pull_request:
-    types: [closed]
-    branches: [main]
+  push:
+    tags: ['v*']
 
 permissions:
   contents: write
@@ -12,7 +11,6 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,41 +25,22 @@ jobs:
           curl -sSL https://github.com/orhun/git-cliff/releases/latest/download/git-cliff-x86_64-unknown-linux-gnu.tar.gz | tar xz
           sudo mv git-cliff /usr/local/bin/
 
-      - name: Determine next version
+      - name: Extract version from tag
         id: version
         run: |
-          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "latest=$latest_tag" >> "$GITHUB_OUTPUT"
-
-          # Parse current version
-          version="${latest_tag#v}"
-          IFS='.' read -r major minor patch <<< "$version"
-
-          # Check commit messages since last tag for bump type
-          commits=$(git log "$latest_tag"..HEAD --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
-
-          if echo "$commits" | grep -qE "^feat(\(.+\))?!:|^fix(\(.+\))?!:|^refactor(\(.+\))?!:|BREAKING CHANGE"; then
-            major=$((major + 1))
-            minor=0
-            patch=0
-          elif echo "$commits" | grep -qE "^feat(\(.+\))?:"; then
-            minor=$((minor + 1))
-            patch=0
-          else
-            patch=$((patch + 1))
-          fi
-
-          next="v${major}.${minor}.${patch}"
-          echo "next=$next" >> "$GITHUB_OUTPUT"
-          echo "Next version: $next"
+          TAG="${GITHUB_REF_NAME}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Releasing version: $TAG"
 
       - name: Generate changelog
         env:
-          NEXT_VERSION: ${{ steps.version.outputs.next }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          git-cliff --tag "$NEXT_VERSION" -o CHANGELOG.md
+          git-cliff --tag "$TAG" --latest -o CHANGELOG.md
 
       - name: Build binaries
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           mkdir -p dist
           platforms=(
@@ -78,7 +57,9 @@ jobs:
               output="${output}.exe"
             fi
             echo "Building $os/$arch..."
-            GOOS="$os" GOARCH="$arch" go build -ldflags="-s -w" -o "$output" ./cmd/lsm
+            GOOS="$os" GOARCH="$arch" go build \
+              -ldflags="-s -w -X github.com/llbbl/lsm/internal/cmd.Version=$TAG" \
+              -o "$output" ./cmd/lsm
           done
 
       - name: Create checksums
@@ -86,19 +67,10 @@ jobs:
           cd dist
           sha256sum lsm-* > checksums.txt
 
-      - name: Create tag
-        env:
-          TAG: ${{ steps.version.outputs.next }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
-
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.next }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           gh release create "$TAG" dist/* \
             --title "$TAG" \
