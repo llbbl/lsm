@@ -354,6 +354,65 @@ func TestEnsureGitignored_AppendsToExisting(t *testing.T) {
 	}
 }
 
+func TestLooksLikeFilePath(t *testing.T) {
+	tests := []struct {
+		arg  string
+		want bool
+	}{
+		{".env.local", true},
+		{"./path/to/file", true},
+		{"/absolute/path", true},
+		{"~/home/path", true},
+		{"myapp", false},
+		{"production", false},
+		{"-", false},
+	}
+	for _, tt := range tests {
+		if got := looksLikeFilePath(tt.arg); got != tt.want {
+			t.Errorf("looksLikeFilePath(%q) = %v, want %v", tt.arg, got, tt.want)
+		}
+	}
+}
+
+func TestResolveWithPositional_FilePathNotConsumedAsApp(t *testing.T) {
+	origApp, origEnv, origDir := flagApp, flagEnv, flagDir
+	defer func() { flagApp, flagEnv, flagDir = origApp, origEnv, origDir }()
+
+	dir := setupTestEnv(t)
+	flagDir = dir
+	flagApp = ""
+	flagEnv = ""
+
+	// ".env.local" should NOT be consumed as app — it looks like a file path
+	args := []string{".env.local"}
+	_, remaining, err := resolveWithPositional(args, 0)
+	if err != nil {
+		t.Fatalf("resolveWithPositional() error: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0] != ".env.local" {
+		t.Errorf("remaining = %v, want [.env.local]", remaining)
+	}
+}
+
+func TestResolveWithPositional_AbsolutePathNotConsumedAsApp(t *testing.T) {
+	origApp, origEnv, origDir := flagApp, flagEnv, flagDir
+	defer func() { flagApp, flagEnv, flagDir = origApp, origEnv, origDir }()
+
+	dir := setupTestEnv(t)
+	flagDir = dir
+	flagApp = ""
+	flagEnv = ""
+
+	args := []string{"/tmp/secrets.env"}
+	_, remaining, err := resolveWithPositional(args, 0)
+	if err != nil {
+		t.Fatalf("resolveWithPositional() error: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0] != "/tmp/secrets.env" {
+		t.Errorf("remaining = %v, want [/tmp/secrets.env]", remaining)
+	}
+}
+
 func TestIsInGitRepo(t *testing.T) {
 	// Current directory (the lsm project) should be a git repo
 	if !isInGitRepo() {

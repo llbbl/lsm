@@ -49,9 +49,16 @@ func openStore(cfg *config.Config) (*store.Store, error) {
 	return s, nil
 }
 
+// looksLikeFilePath returns true if the argument appears to be a file path
+// rather than an app or env name (starts with . / or ~, or contains path separators).
+func looksLikeFilePath(arg string) bool {
+	return strings.HasPrefix(arg, ".") || strings.HasPrefix(arg, "/") || strings.HasPrefix(arg, "~") || strings.Contains(arg, string(filepath.Separator))
+}
+
 // resolveWithPositional resolves config, consuming optional positional app and env args.
 // It returns the resolved config and remaining args after consuming app/env.
 // This handles the pattern: command [app] [env] <required-args...>
+// Arguments that look like file paths (starting with . / ~) are never consumed as app/env.
 func resolveWithPositional(args []string, requiredCount int) (*config.Config, []string, error) {
 	extra := len(args) - requiredCount
 
@@ -61,19 +68,19 @@ func resolveWithPositional(args []string, requiredCount int) (*config.Config, []
 	var remaining []string
 
 	switch {
-	case extra >= 2 && flagApp == "" && flagEnv == "":
+	case extra >= 2 && flagApp == "" && flagEnv == "" && !looksLikeFilePath(args[0]) && !looksLikeFilePath(args[1]):
 		posApp = args[0]
 		posEnv = args[1]
 		remaining = args[2:]
-	case extra >= 1 && flagApp == "" && flagEnv == "":
+	case extra >= 1 && flagApp == "" && flagEnv == "" && !looksLikeFilePath(args[0]):
 		// Could be app only, try to resolve with it
 		posApp = args[0]
 		remaining = args[1:]
-	case extra >= 1 && flagApp != "" && flagEnv == "":
+	case extra >= 1 && flagApp != "" && flagEnv == "" && !looksLikeFilePath(args[0]):
 		// App set by flag, extra could be env
 		posEnv = args[0]
 		remaining = args[1:]
-	case extra >= 1 && flagApp == "" && flagEnv != "":
+	case extra >= 1 && flagApp == "" && flagEnv != "" && !looksLikeFilePath(args[0]):
 		// Env set by flag, extra could be app
 		posApp = args[0]
 		remaining = args[1:]
