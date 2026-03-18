@@ -1,22 +1,29 @@
 name: Auto Release
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches: [main]
 
 permissions:
   contents: write
 
 jobs:
-  auto-release:
-    name: Determine Version and Tag
+  version:
+    name: Determine Version
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
+    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+    outputs:
+      tag: ${{ steps.version.outputs.next }}
+      version: ${{ steps.version.outputs.version }}
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
 
       - name: Determine next version
         id: version
@@ -24,11 +31,9 @@ jobs:
           latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "latest=$latest_tag" >> "$GITHUB_OUTPUT"
 
-          # Parse current version
           version="${latest_tag#v}"
           IFS='.' read -r major minor patch <<< "$version"
 
-          # Check commit messages since last tag for bump type
           commits=$(git log "$latest_tag"..HEAD --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
 
           if echo "$commits" | grep -qE "^feat(\(.+\))?!:|^fix(\(.+\))?!:|^refactor(\(.+\))?!:|BREAKING CHANGE"; then
@@ -45,7 +50,12 @@ jobs:
           next="v${major}.${minor}.${patch}"
           echo "next=$next" >> "$GITHUB_OUTPUT"
           echo "version=${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
-          echo "Next version: $next"
+          echo "Next version: $next (from $latest_tag)"
+
+      - name: Verify
+        run: |
+          go vet ./...
+          go test ./...
 
       - name: Update VERSION file
         env:
@@ -64,3 +74,70 @@ jobs:
           git commit -m "chore(release): bump version to $VERSION"
           git tag -a "$TAG" -m "Release $TAG"
           git push origin main --follow-tags
+
+  release:
+    name: Build and Release
+    needs: version
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install git-cliff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo orhun/git-cliff --pattern '*x86_64-unknown-linux-gnu.tar.gz' --output git-cliff.tar.gz
+          tar xzf git-cliff.tar.gz
+          sudo mv git-cliff-*/git-cliff /usr/local/bin/
+
+      - name: Generate changelog
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          git-cliff --tag "$TAG" --latest -o CHANGELOG.md
+
+      - name: Build binaries
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          mkdir -p dist
+          platforms=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
+            "windows/amd64"
+          )
+          for platform in "${platforms[@]}"; do
+            IFS='/' read -r os arch <<< "$platform"
+            output="dist/lsm-${os}-${arch}"
+            if [ "$os" = "windows" ]; then
+              output="${output}.exe"
+            fi
+            echo "Building $os/$arch..."
+            GOOS="$os" GOARCH="$arch" go build \
+              -ldflags="-s -w -X github.com/llbbl/lsm/internal/cmd.Version=$TAG" \
+              -o "$output" ./cmd/lsm
+          done
+
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum lsm-* > checksums.txt
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/* \
+            --title "$TAG" \
+            --notes-file CHANGELOG.md
