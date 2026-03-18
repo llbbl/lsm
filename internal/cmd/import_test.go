@@ -262,6 +262,63 @@ func TestImport_StdinNoReminder(t *testing.T) {
 	}
 }
 
+func TestImport_FilePathNotConsumedAsApp(t *testing.T) {
+	dir := setupTestEnv(t)
+	workDir := t.TempDir()
+
+	// Create .env.local in the working directory
+	if err := os.WriteFile(filepath.Join(workDir, ".env.local"), []byte("FILE_KEY=file_value\n"), 0644); err != nil {
+		t.Fatalf("writing .env.local: %v", err)
+	}
+
+	t.Chdir(workDir)
+
+	// ".env.local" should be treated as a file path, not an app name
+	out, err := runCmd(t, "import", "--dir", dir, "--app", "testapp", "--env", "dev", ".env.local")
+	if err != nil {
+		t.Fatalf("import error: %v", err)
+	}
+	if !strings.Contains(out, "Imported") {
+		t.Errorf("output missing 'Imported': %s", out)
+	}
+
+	got, err := runCmd(t, "get", "--dir", dir, "--app", "testapp", "--env", "dev", "FILE_KEY")
+	if err != nil {
+		t.Fatalf("get error: %v", err)
+	}
+	if got != "file_value" {
+		t.Errorf("got %q, want %q", got, "file_value")
+	}
+}
+
+func TestImport_ExplicitAppAndFilePath(t *testing.T) {
+	dir := setupTestEnv(t)
+	workDir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(workDir, ".env.local"), []byte("COMBO_KEY=combo_value\n"), 0644); err != nil {
+		t.Fatalf("writing .env.local: %v", err)
+	}
+
+	t.Chdir(workDir)
+
+	// Both --app flag and dot-prefixed file arg should work together
+	out, err := runCmd(t, "import", "--dir", dir, "--app", "testapp", "--env", "dev", ".env.local")
+	if err != nil {
+		t.Fatalf("import error: %v", err)
+	}
+	if !strings.Contains(out, "Imported") {
+		t.Errorf("output missing 'Imported': %s", out)
+	}
+
+	got, err := runCmd(t, "get", "--dir", dir, "--app", "testapp", "--env", "dev", "COMBO_KEY")
+	if err != nil {
+		t.Fatalf("get error: %v", err)
+	}
+	if got != "combo_value" {
+		t.Errorf("got %q, want %q", got, "combo_value")
+	}
+}
+
 // TestImportMerge verifies that import merges into existing secrets.
 func TestImportMerge(t *testing.T) {
 	dir := setupTestEnv(t)
