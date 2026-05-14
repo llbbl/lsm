@@ -79,6 +79,42 @@ func TestEditCmd_EditorModifiesContent(t *testing.T) {
 	}
 }
 
+func TestEditCmd_EditorWithFlags(t *testing.T) {
+	// Regression test for: $EDITOR with flags (e.g. "zed --wait") must be
+	// tokenized on whitespace before invoking exec.Command.
+	dir := setupTestEnv(t)
+
+	_, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "ORIG_KEY", "orig_val")
+	if err != nil {
+		t.Fatalf("set error: %v", err)
+	}
+
+	// Script that requires a leading --flag arg, proving multi-token parsing.
+	scriptDir := t.TempDir()
+	scriptPath := filepath.Join(scriptDir, "editor.sh")
+	script := "#!/bin/sh\n" +
+		"test \"$1\" = \"--flag\" || exit 99\n" +
+		"shift\n" +
+		"echo \"NEW_KEY=new_value\" > \"$1\"\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		t.Fatalf("writing editor script: %v", err)
+	}
+
+	t.Setenv("EDITOR", scriptPath+" --flag")
+
+	if _, err := runCmd(t, "edit", "--dir", dir, "--app", "testapp", "--env", "dev"); err != nil {
+		t.Fatalf("edit error: %v", err)
+	}
+
+	out, err := runCmd(t, "get", "--dir", dir, "--app", "testapp", "--env", "dev", "NEW_KEY")
+	if err != nil {
+		t.Fatalf("get NEW_KEY error: %v", err)
+	}
+	if out != "new_value" {
+		t.Errorf("NEW_KEY = %q, want %q", out, "new_value")
+	}
+}
+
 func TestEditCmd_EditorFails(t *testing.T) {
 	dir := setupTestEnv(t)
 
