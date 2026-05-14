@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -50,8 +51,13 @@ func newEditCmd() *cobra.Command {
 				return fmt.Errorf("closing temp file: %w", err)
 			}
 
-			// Open editor
-			editorCmd := exec.Command(editor, tmpPath)
+			// Open editor — tokenize $EDITOR so values like "zed --wait" work.
+			fields := strings.Fields(editor)
+			if len(fields) == 0 {
+				return fmt.Errorf("editor is empty")
+			}
+			editorArgs := append(fields[1:], tmpPath)
+			editorCmd := exec.Command(fields[0], editorArgs...)
 			editorCmd.Stdin = os.Stdin
 			editorCmd.Stdout = os.Stdout
 			editorCmd.Stderr = os.Stderr

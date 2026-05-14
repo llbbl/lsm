@@ -18,3 +18,10 @@ CLAUDE.md
 AGENT.md
 GEMINI.md
 .claude/
+.beads/
+_/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
