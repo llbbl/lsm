@@ -1,3 +1,6 @@
+# git-cliff configuration for changelog generation
+# https://git-cliff.org
+
 [changelog]
 header = """
 # Changelog
