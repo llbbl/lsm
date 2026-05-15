@@ -13,16 +13,16 @@ import (
 
 func newEnvsCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "envs APP",
+		Use:   "envs [app]",
 		Short: "List all environments for an app",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dir, err := resolveDir()
+			cfg, _, err := resolveWithPositional(args, 0)
 			if err != nil {
 				return err
 			}
-			app := args[0]
-			envs, err := store.ListEnvs(dir, app)
+
+			envs, err := store.ListEnvs(cfg.Dir, cfg.App)
 			if err != nil {
 				return err
 			}
