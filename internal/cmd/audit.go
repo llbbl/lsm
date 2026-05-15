@@ -32,6 +32,7 @@ func newAuditCmd() *cobra.Command {
 		newAuditTailCmd(),
 		newAuditShowCmd(),
 		newAuditQueryCmd(),
+		newAuditSuspiciousCmd(),
 	)
 	return cmd
 }
