@@ -1,0 +1,108 @@
+# Loki ruler alerting rules for lsm audit events.
+#
+# Drop this file into your Loki ruler config directory (or wire it via the
+# Loki ruler's configured object storage / file backend). Adjust the
+# `service_name` label name and `actor.parent_comm` JSON path if your OTLP
+# collector uses different conventions.
+#
+# Alerts route to whatever your Alertmanager is configured for: PagerDuty,
+# ntfy, Slack, email, etc. lsm has no opinion on routing.
+#
+# These rules ONLY work against the events that actually ship via OTLPSink.
+# Local-only events (`audit.verify.failed`, `audit.suspicious.flagged`,
+# `audit.sink.dropped`) never reach Loki — they're checked locally with
+# `lsm audit verify` or `lsm audit suspicious` and should be wired into a
+# host-local cron / systemd timer if you want alerting on them.
+
+groups:
+  - name: lsm-audit
+    interval: 1m
+    rules:
+      # Burst: > 50 events from one parent_comm in 1 minute.
+      # Loki extracts `actor.parent_comm` from the JSON body, then we count
+      # by it. Catches a runaway agent or a script in a tight loop.
+      - alert: LsmBurstFromParentComm
+        expr: |
+          sum by (actor_parent_comm) (
+            count_over_time(
+              {service_name="lsm"}
+              | json actor_parent_comm="actor.parent_comm"
+              | __error__=""
+              [1m]
+            )
+          ) > 50
+        for: 0m
+        labels:
+          severity: warning
+          source: lsm
+        annotations:
+          summary: "lsm: burst access from {{ $labels.actor_parent_comm }}"
+          description: |
+            Parent process `{{ $labels.actor_parent_comm }}` issued more than 50
+            audit events in the last minute. Likely a runaway agent or a tight
+            loop in scripted access. Investigate the parent process and consider
+            killing it.
+
+      # Non-interactive, no agent marker: any event lacking BOTH a TTY AND
+      # a known AI-tool env var. The canary for unexplained background access
+      # (cron, leaked-credential drivers, etc.).
+      - alert: LsmNonInteractiveNoAgent
+        expr: |
+          sum(
+            count_over_time(
+              {service_name="lsm", tty_present="false", agent_marker="none"}
+              [5m]
+            )
+          ) > 0
+        for: 0m
+        labels:
+          severity: warning
+          source: lsm
+        annotations:
+          summary: "lsm: non-interactive access without known agent"
+          description: |
+            One or more lsm events in the last 5 minutes had no TTY and no
+            recognized agent env var. This is the high-signal "what is even
+            running this?" case. Drill into the log lines for `actor.parent_comm`.
+
+      # New agent_marker: a marker label that has not been seen in the prior
+      # 30 days. `absent_over_time` on a per-marker stream gives us a "first
+      # seen" signal. Triggers once when a new agent integration starts being
+      # detected — expected for the legitimate case (new tool added), worth
+      # a glance to confirm.
+      - alert: LsmNewAgentMarker
+        expr: |
+          sum by (agent_marker) (
+            count_over_time({service_name="lsm"}[1h])
+          )
+          unless on(agent_marker)
+          sum by (agent_marker) (
+            count_over_time({service_name="lsm"}[30d] offset 1h)
+          ) > 0
+        for: 0m
+        labels:
+          severity: info
+          source: lsm
+        annotations:
+          summary: "lsm: new agent_marker '{{ $labels.agent_marker }}' observed"
+          description: |
+            Agent marker `{{ $labels.agent_marker }}` appeared in the last hour
+            with no events recorded under that marker in the prior 30 days.
+            Likely benign (a new tool was just installed), but confirm.
+
+      # Aggregate volume: more than 1000 events/min globally is well past
+      # interactive use. Catches both bursts (already covered narrower) and
+      # slow-drip exfiltration that doesn't trip the per-parent threshold.
+      - alert: LsmHighEventRate
+        expr: |
+          sum(rate({service_name="lsm"}[5m])) > 17
+        for: 2m
+        labels:
+          severity: warning
+          source: lsm
+        annotations:
+          summary: "lsm: high event rate ({{ $value | printf \"%.1f\" }}/sec)"
+          description: |
+            lsm audit event rate has exceeded ~1000/min (17/sec) for 2 minutes.
+            Could be burst, broad exfiltration, or a legitimate batch job. Look
+            at `agent_marker` distribution to triage.
