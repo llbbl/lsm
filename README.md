@@ -106,6 +106,13 @@ lsm dump --env production
 
 - [Getting Started](docs/getting-started.md) — full setup walkthrough
 - [Command Reference](docs/commands.md) — detailed usage for every command
+- [Observability](docs/observability.md) — what audit events ship remotely (and what stays local)
+
+## Observability
+
+lsm can optionally emit an audit log of every access and ship it via OTLP to your observability stack (Loki/Grafana, Honeycomb, Datadog, etc.). Off by default — enable via the `otlp:` block in `~/.lsm/config.yaml`.
+
+For users running the LGTM stack, drop-in Grafana dashboard + Loki alert rules live in [`observability/`](observability/). lsm itself has no Grafana/Loki dependency; these are pure config artifacts.
 
 ## Changelog
 
