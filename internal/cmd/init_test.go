@@ -150,6 +150,15 @@ func TestInitCmd_ConfigYamlContent(t *testing.T) {
 	if !strings.Contains(s, "level:") || !strings.Contains(s, "dest:") || !strings.Contains(s, "format:") {
 		t.Errorf("config.yaml should mention level/dest/format, got %q", s)
 	}
+	// The commented otlp block makes the remote-shipping surface discoverable.
+	if !strings.Contains(s, "# otlp:") {
+		t.Errorf("config.yaml should contain commented otlp block, got %q", s)
+	}
+	for _, key := range []string{"endpoint:", "batch_size:", "batch_window:", "queue_cap:", "max_retries:", "retry_base_delay:"} {
+		if !strings.Contains(s, key) {
+			t.Errorf("config.yaml should mention %q, got %q", key, s)
+		}
+	}
 }
 
 func TestInitCmd_PreservesExistingConfig(t *testing.T) {
