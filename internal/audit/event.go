@@ -19,10 +19,9 @@ const SchemaVersion = 1
 // Event is one record in the audit log. Hash and Prev are populated by the
 // Sink (single writer); callers leave them zero.
 //
-// Note: Actor has no omitempty tag because encoding/json does not treat a
-// zero-value struct as empty. Keeping the field always present (as `{}` for
-// now) gives the chain a stable shape across the eventual transition where
-// downstream tickets populate Actor with ppid, parent_comm, tty, etc.
+// Note: Actor has no omitempty tag and its fields likewise omit omitempty.
+// Every event therefore records a complete Actor shape, even when the caller
+// leaves it zero-valued. See the Actor doc comment for rationale.
 type Event struct {
 	SchemaVersion int            `json:"schema_version"`
 	Seq           uint64         `json:"seq"`
@@ -37,8 +36,18 @@ type Event struct {
 	Hash          string         `json:"hash"`
 }
 
-// Actor describes the process that triggered an event. It is intentionally
-// empty for now; the struct exists so the on-disk Event shape is forward
-// stable. Downstream tickets populate ppid, parent_comm, tty, cwd,
-// agent_marker, uid.
-type Actor struct{}
+// Actor describes the process that triggered an event. Fields are intentionally
+// declared without omitempty so every event records a complete, predictable
+// shape. UID 0 (root) is a meaningful value that omitempty would silently drop,
+// and a stable schema lets downstream consumers (query tools, dashboards) rely
+// on every field being present.
+//
+// Use CaptureActor to populate this struct from the current process context.
+type Actor struct {
+	PPID        int    `json:"ppid"`
+	ParentComm  string `json:"parent_comm"`
+	TTY         string `json:"tty"`
+	CWD         string `json:"cwd"`
+	AgentMarker string `json:"agent_marker"`
+	UID         int    `json:"uid"`
+}
