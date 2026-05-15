@@ -16,10 +16,19 @@ const SaltSize = 32
 // LoadOrCreateSalt reads or generates the per-host observability salt
 // at path. The file is written with mode 0600. If the file does not
 // exist, 32 random bytes are generated and persisted atomically (write
-// to <path>.tmp then rename). Existing files must be exactly SaltSize
-// bytes long and have mode 0600 — anything else is treated as an error
-// because regenerating the salt invalidates dashboard hash continuity,
-// and that decision must be explicit, not silent.
+// to <path>.tmp then rename).
+//
+// Existing files must be exactly SaltSize bytes long and must have a
+// mode that grants NO permission bits to group or other. Concretely,
+// the check is `mode & 0o077 == 0`. Accepts 0400, 0500, 0600 (which
+// lsm itself writes), and 0700 — stricter modes are not weakened, they
+// just remove write access lsm doesn't need after creation. Rejects
+// 0640, 0644, 0660, 0666, etc.
+//
+// Wrong size or weakened modes (any group/other bit set) are surfaced
+// as errors rather than silently regenerating: regenerating the salt
+// invalidates dashboard hash continuity (existing app/env label hashes
+// stop matching), and that decision must be explicit.
 func LoadOrCreateSalt(path string) ([]byte, error) {
 	info, err := os.Stat(path)
 	if err == nil {
@@ -28,8 +37,11 @@ func LoadOrCreateSalt(path string) ([]byte, error) {
 			return nil, fmt.Errorf("audit: salt at %s has wrong size %d (want %d); refusing to use", path, info.Size(), SaltSize)
 		}
 		mode := info.Mode().Perm()
-		if mode != 0600 {
-			return nil, fmt.Errorf("audit: salt at %s has mode %o (want 0600); refusing to use weakened salt", path, mode)
+		// Reject any mode that grants group or other any permission bit.
+		// Stricter-than-0600 modes (0400, 0500, 0700) are fine — they
+		// just remove write/exec we don't need after creation.
+		if mode&0o077 != 0 {
+			return nil, fmt.Errorf("audit: salt at %s has mode %#o (grants group/other access); refusing to use weakened salt", path, mode)
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {

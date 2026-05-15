@@ -75,3 +75,54 @@ func TestLoadOrCreateSalt_WeakenedModeRejected(t *testing.T) {
 		t.Fatal("expected error for weakened-mode salt")
 	}
 }
+
+// TestLoadOrCreateSalt_ModeAcceptance exercises the mode predicate
+// (`mode & 0o077 == 0`): any user-only mode is accepted (including
+// stricter-than-0600 modes such as 0400, 0500, 0700, which merely drop
+// permission bits lsm doesn't need post-creation); any mode granting
+// group or other a permission bit is rejected as weakened.
+func TestLoadOrCreateSalt_ModeAcceptance(t *testing.T) {
+	cases := []struct {
+		name    string
+		mode    os.FileMode
+		wantErr bool
+	}{
+		{"0400_read_only_owner", 0400, false},
+		{"0500_read_exec_owner", 0500, false},
+		{"0600_default", 0600, false},
+		{"0700_full_owner", 0700, false},
+		{"0640_group_read", 0640, true},
+		{"0644_world_read", 0644, true},
+		{"0660_group_rw", 0660, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "observability.salt")
+			buf := make([]byte, SaltSize)
+			for i := range buf {
+				buf[i] = byte(i)
+			}
+			if err := os.WriteFile(path, buf, c.mode); err != nil {
+				t.Fatalf("seed: %v", err)
+			}
+			// WriteFile honors umask; force the exact mode.
+			if err := os.Chmod(path, c.mode); err != nil {
+				t.Fatalf("chmod: %v", err)
+			}
+			got, err := LoadOrCreateSalt(path)
+			if c.wantErr {
+				if err == nil {
+					t.Fatalf("LoadOrCreateSalt(%#o): expected error, got nil", c.mode)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("LoadOrCreateSalt(%#o): unexpected error: %v", c.mode, err)
+			}
+			if !bytes.Equal(got, buf) {
+				t.Errorf("salt mismatch after read")
+			}
+		})
+	}
+}
