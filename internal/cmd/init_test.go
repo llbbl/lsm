@@ -139,8 +139,16 @@ func TestInitCmd_ConfigYamlContent(t *testing.T) {
 		t.Fatalf("reading config.yaml: %v", err)
 	}
 
-	if string(data) != "env: dev\n" {
-		t.Errorf("config.yaml content = %q, want %q", string(data), "env: dev\n")
+	s := string(data)
+	if !strings.HasPrefix(s, "env: dev\n") {
+		t.Errorf("config.yaml should start with %q, got %q", "env: dev\n", s)
+	}
+	// The commented log block makes the configuration surface discoverable.
+	if !strings.Contains(s, "# log:") {
+		t.Errorf("config.yaml should contain commented log block, got %q", s)
+	}
+	if !strings.Contains(s, "level:") || !strings.Contains(s, "dest:") || !strings.Contains(s, "format:") {
+		t.Errorf("config.yaml should mention level/dest/format, got %q", s)
 	}
 }
 
