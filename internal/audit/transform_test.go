@@ -14,7 +14,7 @@ import (
 func makeTransformer(t *testing.T) Transformer {
 	t.Helper()
 	return Transformer{
-		Salt:     []byte("test-salt-32-bytes-long-fixed-AAAA"),
+		Salt:     []byte("test-salt-32-bytes-long-fixed-AA"),
 		HostName: "test-host",
 	}
 }

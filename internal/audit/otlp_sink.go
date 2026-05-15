@@ -35,23 +35,87 @@ const (
 // OTLPSinkConfig configures an OTLPSink. All fields except Endpoint and
 // Transformer.Salt have sensible defaults.
 type OTLPSinkConfig struct {
-	Endpoint       string            // required, e.g. "https://otlp.example.com/v1/logs"
-	Headers        map[string]string // optional, e.g. {"Authorization": "Bearer xxx"}
-	BatchSize      int               // events per batch (default 100)
-	BatchWindow    time.Duration     // flush after this long even if batch incomplete (default 5s)
-	QueueCap       int               // bounded channel cap (default 1000)
-	MaxRetries     int               // per-batch (default 3)
-	RetryBaseDelay time.Duration     // first retry delay; doubles each attempt (default 1s)
-	HTTPClient     *http.Client      // optional; defaults to a 10s timeout client
+	// Endpoint is the OTLP/HTTP logs endpoint, e.g.
+	// "https://otlp.example.com/v1/logs". Required.
+	Endpoint string
 
-	Transformer Transformer  // required (Salt + HostName)
-	Logger      *slog.Logger // optional, for drop warnings; uses dlog.Discard if nil
+	// Headers are extra HTTP headers added to every request, e.g.
+	// {"Authorization": "Bearer xxx"}. Applied with http.Header.Set
+	// AFTER the sink's defaults, so supplying "Content-Type" or
+	// "User-Agent" here WILL override the defaults. Supported, but
+	// generally not recommended unless you know you need it.
+	Headers map[string]string
+
+	// BatchSize is the max events per HTTP request (default 100). A
+	// batch is flushed as soon as it reaches this size OR BatchWindow
+	// elapses, whichever comes first.
+	BatchSize int
+
+	// BatchWindow forces a flush after this long even if the batch
+	// isn't full (default 5s).
+	BatchWindow time.Duration
+
+	// QueueCap is the bounded in-memory channel capacity between
+	// Write callers and the writer goroutine (default 1000). When
+	// full, Write drops the event and increments the dropped counter
+	// rather than blocking the caller.
+	QueueCap int
+
+	// MaxRetries is the number of RETRIES (not total attempts) per
+	// batch on transient failures (default 3). Off-by-one warning:
+	// MaxRetries=0 means "1 attempt, no retries"; the default
+	// MaxRetries=3 means "1 initial attempt + up to 3 retries = 4
+	// attempts total." Retries apply only to 5xx and transport
+	// errors; 4xx responses are treated as permanent and the batch is
+	// dropped immediately.
+	MaxRetries int
+
+	// RetryBaseDelay is the delay before the FIRST retry; each
+	// subsequent retry doubles the delay (default 1s, so the schedule
+	// is 1s, 2s, 4s, ...).
+	RetryBaseDelay time.Duration
+
+	// HTTPClient is the client used for all requests. Optional;
+	// defaults to a client with a 10s per-request timeout.
+	HTTPClient *http.Client
+
+	// Transformer is the redaction projection applied before queueing
+	// (Salt + HostName required).
+	Transformer Transformer
+
+	// Logger receives drop and retry-exhaustion warnings. Optional;
+	// uses dlog.Discard when nil.
+	Logger *slog.Logger
 }
 
 // OTLPSink is a Sink that asynchronously batches and ships Events over
 // OTLP/HTTP. Local-only events (LocalOnly==true, or event name starting
 // with "audit.") are dropped silently. Other events are projected via
 // the Transformer and queued for the writer goroutine.
+//
+// Concurrency contract:
+//
+//   - cfg, queue, done, logger are set once at construction and read
+//     without locking thereafter. Safe because they never change.
+//   - dropped is mutated by both the Write goroutines (queue-full path)
+//     and the writer goroutine (encode/4xx/retry-exhausted/close paths);
+//     all access goes through atomic.Int64.
+//   - The batch buffer lives entirely inside the writer goroutine; it
+//     is never observed by callers.
+//   - closeOnce guards close-once semantics for done and the wg-wait
+//     deadline. closeErr is written under closeOnce and read after,
+//     never racing.
+//
+// State machine, from the caller's perspective:
+//
+//   - Before Close: Write projects + enqueues (or drops on queue full).
+//   - Close fires (done channel closed): subsequent Write calls return
+//     "OTLPSink is closed" without enqueueing; the writer drains the
+//     queue, sends one final batch, and exits. If the drain doesn't
+//     finish within closeFlushDeadline (5s), Close returns a timeout
+//     error and the writer may still be running with un-flushed events.
+//   - If done fires mid-retry, the in-flight batch is abandoned (counted
+//     as dropped) so close can return promptly.
 type OTLPSink struct {
 	cfg     OTLPSinkConfig
 	queue   chan *ProjectedLog
@@ -109,7 +173,9 @@ func NewOTLPSink(cfg OTLPSinkConfig) (*OTLPSink, error) {
 
 // Write conforms to Sink. Drops local-only events. Projects + enqueues
 // other events. Never blocks: if the queue is full, the event is
-// dropped and the dropped counter is incremented.
+// dropped and the dropped counter is incremented. After Close has
+// fired, Write returns an error without enqueueing — the writer
+// goroutine is on its way out and the queue should not grow further.
 func (s *OTLPSink) Write(_ context.Context, e Event) error {
 	select {
 	case <-s.done:
@@ -134,8 +200,12 @@ func (s *OTLPSink) Write(_ context.Context, e Event) error {
 	}
 }
 
-// Close stops the writer goroutine cleanly, flushing whatever's queued
-// up to a reasonable deadline. Idempotent.
+// Close stops the writer goroutine cleanly. Closes the done channel
+// (which signals the writer to drain the queue and the in-flight
+// retry loop to abort) and waits up to closeFlushDeadline (5s) for
+// the writer to finish. If the deadline elapses, Close returns a
+// timeout error and unflushed events remain in the queue. Idempotent:
+// repeated calls return the same error (or nil) without re-signaling.
 func (s *OTLPSink) Close() error {
 	s.closeOnce.Do(func() {
 		close(s.done)
@@ -204,8 +274,21 @@ func (s *OTLPSink) run() {
 	}
 }
 
-// send POSTs a batch as OTLP/HTTP JSON, retrying transient failures
-// with exponential backoff up to MaxRetries.
+// send POSTs a batch as OTLP/HTTP JSON.
+//
+// Retry policy:
+//   - 2xx: success, return.
+//   - 4xx: permanent client error (bad endpoint, bad auth, malformed
+//     payload). No retry; the batch is dropped and counted.
+//   - 5xx or transport error: transient. Retry with exponential
+//     backoff (RetryBaseDelay, then doubling) up to MaxRetries
+//     additional attempts. Total attempts = 1 + MaxRetries.
+//   - If done fires during a backoff sleep, the remaining retries are
+//     abandoned and the batch is counted as dropped, so Close can
+//     return within its deadline.
+//
+// Encode failures (bad UTF-8 in body, etc.) are treated as drops; we
+// have no way to make them succeed by retrying.
 func (s *OTLPSink) send(batch []*ProjectedLog) {
 	body, err := s.encodeBatch(batch)
 	if err != nil {
@@ -273,7 +356,18 @@ func (s *OTLPSink) post(body []byte) (int, error) {
 
 // encodeBatch builds the OTLP/HTTP JSON payload for a batch of
 // projections. All records share a single resourceLogs / scopeLogs
-// envelope; per-record labels live on each record's attributes.
+// envelope; per-record labels live on each record's `attributes`
+// array (this is where the Loki OTLP receiver promotes them back into
+// Loki labels — putting them on the record body would lose indexing).
+//
+// Wire-format quirks worth knowing:
+//   - timeUnixNano is a string per OTLP spec: the proto field is an
+//     int64 and JSON numbers can't safely round-trip 64-bit ints
+//     through JS-based collectors, so OTLP/HTTP mandates string form.
+//   - severityNumber=9 / severityText="INFO" — OTLP severity scale:
+//     1-4 TRACE, 5-8 DEBUG, 9-12 INFO, 13-16 WARN, 17-20 ERROR,
+//     21-24 FATAL. We pin INFO because audit events have no inherent
+//     severity gradient.
 func (s *OTLPSink) encodeBatch(batch []*ProjectedLog) ([]byte, error) {
 	records := make([]map[string]any, 0, len(batch))
 	now := time.Now().UnixNano()

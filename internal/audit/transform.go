@@ -41,10 +41,22 @@ var fieldAllowlist = map[string]struct{}{}
 // projection ready for a remote sink to emit. If e.LocalOnly is true,
 // or e.Event starts with "audit.", Project returns (nil, false) — the
 // caller MUST drop without further processing.
+//
+// The LocalOnly and "audit.*" checks are the FIRST two gates and run
+// before any field is read or transformed. The contract (see
+// docs/observability.md, "Implementation contract for remote sinks")
+// is that privileged data must not be transformed at all — not
+// hashed, not redacted, not logged at debug level — because each of
+// those steps risks leaking via metrics, traces, or future
+// instrumentation.
 func (t Transformer) Project(e Event) (*ProjectedLog, bool) {
+	// Gate 1: caller-flagged local-only. Return before touching any
+	// other field of e.
 	if e.LocalOnly {
 		return nil, false
 	}
+	// Gate 2: audit.* events describe the audit system itself and are
+	// always local by convention.
 	if strings.HasPrefix(e.Event, "audit.") {
 		return nil, false
 	}
