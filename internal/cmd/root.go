@@ -87,6 +87,7 @@ func NewRootCmd() *cobra.Command {
 		newEnvsCmd(),
 		newLinkCmd(),
 		newCleanCmd(),
+		newAuditCmd(),
 	)
 
 	return rootCmd
