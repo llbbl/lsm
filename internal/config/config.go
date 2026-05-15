@@ -23,6 +23,7 @@ type GlobalConfig struct {
 	Env  string            `yaml:"env"`
 	Apps map[string]string `yaml:"apps,omitempty"` // app name -> absolute path
 	Log  LogConfig         `yaml:"log,omitempty"`
+	OTLP OTLPConfig        `yaml:"otlp,omitempty"`
 }
 
 // LogConfig holds the dlog (developer/flow-tracing log) configuration.
@@ -32,6 +33,22 @@ type LogConfig struct {
 	Level  string `yaml:"level,omitempty"`
 	Dest   string `yaml:"dest,omitempty"`
 	Format string `yaml:"format,omitempty"`
+}
+
+// OTLPConfig holds configuration for the audit OTLP/HTTP remote sink.
+// Duration-shaped fields (BatchWindow, RetryBaseDelay) are stored as
+// strings here and parsed by the sink-construction layer; this keeps
+// the YAML surface friendly ("5s") without coupling the config package
+// to time.Duration.
+type OTLPConfig struct {
+	Enabled        bool              `yaml:"enabled,omitempty"`
+	Endpoint       string            `yaml:"endpoint,omitempty"`
+	Headers        map[string]string `yaml:"headers,omitempty"`
+	BatchSize      int               `yaml:"batch_size,omitempty"`
+	BatchWindow    string            `yaml:"batch_window,omitempty"`
+	QueueCap       int               `yaml:"queue_cap,omitempty"`
+	MaxRetries     int               `yaml:"max_retries,omitempty"`
+	RetryBaseDelay string            `yaml:"retry_base_delay,omitempty"`
 }
 
 // ProjectConfig represents .lsm.yaml in a project directory.

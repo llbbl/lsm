@@ -58,7 +58,7 @@ To support per-app and per-env dashboards/alerts without leaking the actual name
 
 The 12-char truncation gives 48 bits — easily enough to avoid collisions at lsm's scale, short enough to read in dashboards. Each host has its own salt, so the same `app` name on two machines produces different hashed labels. This is intentional: cross-host correlation isn't the goal; per-host pattern detection is.
 
-**Salt management:** `~/.lsm/observability.salt` — 32 random bytes generated on first use, persisted with `0600`. Same lifecycle as the encryption key. Lose it and dashboards re-key (acceptable — recreate dashboards, no data lost).
+**Salt management:** `~/.lsm/observability.salt` — 32 random bytes generated on first use, persisted with `0600`. Same lifecycle as the encryption key. Lose it and dashboards re-key (acceptable — recreate dashboards, no data lost). Stricter modes (`0400`, `0500`, `0700`) are also accepted; lsm only reads the salt once at startup and never rewrites it after creation.
 
 ### Reshaped fields
 

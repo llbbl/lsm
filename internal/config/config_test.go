@@ -455,6 +455,75 @@ func TestLoadGlobalConfig_WithLogBlock(t *testing.T) {
 	}
 }
 
+func TestLoadGlobalConfig_WithOTLPBlock(t *testing.T) {
+	dir := t.TempDir()
+	content := `env: dev
+otlp:
+  enabled: true
+  endpoint: https://otlp.example.com/v1/logs
+  headers:
+    Authorization: Bearer xxx
+  batch_size: 50
+  batch_window: 3s
+  queue_cap: 500
+  max_retries: 5
+  retry_base_delay: 250ms
+`
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := LoadGlobalConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig: %v", err)
+	}
+	if !cfg.OTLP.Enabled {
+		t.Errorf("OTLP.Enabled = false, want true")
+	}
+	if cfg.OTLP.Endpoint != "https://otlp.example.com/v1/logs" {
+		t.Errorf("OTLP.Endpoint = %q", cfg.OTLP.Endpoint)
+	}
+	if cfg.OTLP.Headers["Authorization"] != "Bearer xxx" {
+		t.Errorf("OTLP.Headers = %v", cfg.OTLP.Headers)
+	}
+	if cfg.OTLP.BatchSize != 50 {
+		t.Errorf("OTLP.BatchSize = %d, want 50", cfg.OTLP.BatchSize)
+	}
+	if cfg.OTLP.BatchWindow != "3s" {
+		t.Errorf("OTLP.BatchWindow = %q, want %q", cfg.OTLP.BatchWindow, "3s")
+	}
+	if cfg.OTLP.QueueCap != 500 {
+		t.Errorf("OTLP.QueueCap = %d, want 500", cfg.OTLP.QueueCap)
+	}
+	if cfg.OTLP.MaxRetries != 5 {
+		t.Errorf("OTLP.MaxRetries = %d, want 5", cfg.OTLP.MaxRetries)
+	}
+	if cfg.OTLP.RetryBaseDelay != "250ms" {
+		t.Errorf("OTLP.RetryBaseDelay = %q, want %q", cfg.OTLP.RetryBaseDelay, "250ms")
+	}
+}
+
+func TestLoadGlobalConfig_MissingOTLPBlock_DefaultsZero(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("env: dev\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := LoadGlobalConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig: %v", err)
+	}
+	zero := OTLPConfig{}
+	if cfg.OTLP.Enabled != zero.Enabled ||
+		cfg.OTLP.Endpoint != zero.Endpoint ||
+		cfg.OTLP.BatchSize != zero.BatchSize ||
+		cfg.OTLP.BatchWindow != zero.BatchWindow ||
+		cfg.OTLP.QueueCap != zero.QueueCap ||
+		cfg.OTLP.MaxRetries != zero.MaxRetries ||
+		cfg.OTLP.RetryBaseDelay != zero.RetryBaseDelay ||
+		len(cfg.OTLP.Headers) != 0 {
+		t.Errorf("OTLP not zero: %+v", cfg.OTLP)
+	}
+}
+
 func TestLoadGlobalConfig_MissingLogBlock_DefaultsEmpty(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("env: dev\n"), 0644); err != nil {

@@ -23,6 +23,20 @@ const defaultConfigYAML = `env: dev
 #   level: debug         # off | error | warn | info | debug
 #   dest: stderr         # stderr | stdout | file:/absolute/path
 #   format: text         # text | json
+
+# OTLP audit shipping - disabled by default. When enabled, non-local
+# audit events are projected (with app/env hashing) and shipped to the
+# configured OTLP/HTTP logs endpoint.
+# otlp:
+#   enabled: false
+#   endpoint: https://otlp.example.com/v1/logs
+#   headers:
+#     Authorization: Bearer xxx
+#   batch_size: 100
+#   batch_window: 5s
+#   queue_cap: 1000
+#   max_retries: 3
+#   retry_base_delay: 1s
 `
 
 func newInitCmd() *cobra.Command {
