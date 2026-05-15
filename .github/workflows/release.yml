@@ -1,24 +1,155 @@
 name: Release
 
+# Single consolidated release workflow. Three trigger paths:
+#
+#   1. Auto path — `push: branches: [main]`. Compute the next version
+#      from Conventional Commit subjects since the last tag, create
+#      and push a `vX.Y.Z` annotated tag, then build and publish.
+#
+#   2. Manual major path — `push: tags: ['v*']`. A maintainer pushes a
+#      `vX.0.0` tag from their workstation (their own credentials, not
+#      GITHUB_TOKEN), this trigger fires, the version job is skipped,
+#      and the release job builds against the pushed tag.
+#
+#   3. Manual back-fill path — `workflow_dispatch` with a required
+#      `tag` input. Use the Actions UI to back-fill a missed release
+#      against an existing tag.
+#
+# Major version bumps are intentionally MANUAL in the auto path. See
+# docs/development.md "Releases" section. The version-bump logic
+# treats `feat!:` and `BREAKING CHANGE:` as MINOR bumps — this guards
+# against accidental 2.0/3.0 releases while the project is in rapid
+# iteration. To cut a major release, use trigger path #2 above.
+
 on:
   push:
+    branches: [main]
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.1.3) — used for back-filling missed releases"
+        required: true
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    name: Release
+  version:
+    name: Determine version and tag
+    # Only the auto path computes a new version. Tag-push and
+    # workflow_dispatch skip this job and feed the existing tag
+    # directly into the release job via the resolve-tag step.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'chore(release):')
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.next }}
+      skip: ${{ steps.version.outputs.skip }}
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: true
 
-      - uses: actions/setup-go@v5
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.25.7"
+          cache: true
+
+      - name: Sanity check
+        run: |
+          go vet ./...
+          go test -count=1 ./...
+
+      - name: Determine next version
+        id: version
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest=$latest_tag"
+
+          version="${latest_tag#v}"
+          IFS='.' read -r major minor patch <<< "$version"
+
+          commits=$(git log "$latest_tag"..HEAD --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
+
+          if [ -z "$commits" ]; then
+            echo "No new commits since $latest_tag; skipping release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Major bumps are MANUAL — see docs/development.md "Releases" section.
+          # `feat!:` / `BREAKING CHANGE:` footers fall through to the feat branch
+          # below (minor bump), NOT a major bump. This guards against accidental
+          # 2.0 releases while the project is still in rapid-iteration mode.
+          if echo "$commits" | grep -qE "^feat(\(.+\))?!?:"; then
+            minor=$((minor + 1))
+            patch=0
+          elif echo "$commits" | grep -qE "^(fix|perf|refactor|chore)(\(.+\))?!?:"; then
+            patch=$((patch + 1))
+          else
+            echo "No release-worthy commits since $latest_tag; skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          next="v${major}.${minor}.${patch}"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Next version: $next (from $latest_tag)"
+
+      - name: Tag and push
+        if: steps.version.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.version.outputs.next }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+  release:
+    name: Build and publish release
+    needs: version
+    # `always()` lets us evaluate the boolean even when `version` was
+    # skipped (tag-push and workflow_dispatch paths). Without it, a
+    # skipped dependency would skip this job by default.
+    #
+    # The three OR clauses match the three trigger paths:
+    #   - auto path: version ran successfully and produced a tag
+    #   - manual major path: push of a v* tag (version did not run)
+    #   - back-fill path: workflow_dispatch (version did not run)
+    if: |
+      always() && (
+        (needs.version.result == 'success' && needs.version.outputs.skip != 'true') ||
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+        github.event_name == 'workflow_dispatch'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: resolve-tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ needs.version.outputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.resolve-tag.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.7"
+          cache: true
 
       - name: Install git-cliff
         env:
@@ -28,22 +159,15 @@ jobs:
           tar xzf git-cliff.tar.gz
           sudo mv git-cliff-*/git-cliff /usr/local/bin/
 
-      - name: Extract version from tag
-        id: version
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Releasing version: $TAG"
-
       - name: Generate changelog
         env:
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ steps.resolve-tag.outputs.tag }}
         run: |
           git-cliff --tag "$TAG" --latest -o CHANGELOG.md
 
       - name: Build binaries
         env:
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ steps.resolve-tag.outputs.tag }}
         run: |
           mkdir -p dist
           platforms=(
@@ -73,7 +197,7 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ steps.resolve-tag.outputs.tag }}
         run: |
           gh release create "$TAG" dist/* \
             --title "$TAG" \
