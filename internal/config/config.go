@@ -22,6 +22,16 @@ type Config struct {
 type GlobalConfig struct {
 	Env  string            `yaml:"env"`
 	Apps map[string]string `yaml:"apps,omitempty"` // app name -> absolute path
+	Log  LogConfig         `yaml:"log,omitempty"`
+}
+
+// LogConfig holds the dlog (developer/flow-tracing log) configuration.
+// All fields default sensibly when unset; see internal/dlog for the
+// accepted values and defaults.
+type LogConfig struct {
+	Level  string `yaml:"level,omitempty"`
+	Dest   string `yaml:"dest,omitempty"`
+	Format string `yaml:"format,omitempty"`
 }
 
 // ProjectConfig represents .lsm.yaml in a project directory.

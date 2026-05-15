@@ -1,8 +1,11 @@
 // Package dlog is a thin wrapper over log/slog for internal flow
 // tracing. It is distinct from the audit log (forthcoming — see
 // lsm-dgs.2 et al), which records user-visible, durable events. dlog
-// is for developers debugging the binary, off by default, configurable
-// via environment variables.
+// is for developers debugging the binary, off by default.
+//
+// Settings come from explicit parameters; lsm reads them from the
+// user's `~/.lsm/config.yaml` (the `log:` block) in PersistentPreRunE
+// and passes them through. No environment variables are consulted.
 package dlog
 
 import (
@@ -13,13 +16,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-)
-
-// Environment variable names honored by New.
-const (
-	EnvLevel  = "LSM_LOG_LEVEL"
-	EnvDest   = "LSM_LOG_DEST"
-	EnvFormat = "LSM_LOG_FORMAT"
 )
 
 // Discard is the no-op logger returned when level is "off". Useful as a
@@ -52,33 +48,27 @@ type nopCloser struct{}
 
 func (nopCloser) Close() error { return nil }
 
-// New constructs a logger at the requested level, defaulting to a
-// silent logger when the resolved level is "off" or unset. If level is
-// the empty string, LSM_LOG_LEVEL is consulted; if that is also empty,
-// the level defaults to "off". DEST/FORMAT routing is always read from
-// the environment. Honors:
+// New constructs a logger from explicit parameters. Empty strings fall
+// back to defaults; unknown values fall back to defaults AND emit a
+// one-line warning to stderr describing the fallback.
 //
-//	level argument (or LSM_LOG_LEVEL) = debug | info | warn | error | off  (default: off)
-//	LSM_LOG_DEST   = stderr | stdout | file:/absolute/path  (default: stderr)
-//	LSM_LOG_FORMAT = text | json  (default: text)
+//	level  = debug | info | warn | error | off   (default: off)
+//	dest   = stderr | stdout | file:/absolute/path (default: stderr)
+//	format = text | json                          (default: text)
 //
-// Unknown values fall back to defaults and emit a single warn-level
-// message to stderr describing the fallback (not the offending value).
+// When level resolves to "off" the returned logger is Discard.
 //
-// New does not mutate the process environment, so concurrent callers
-// are safe.
-func New(level string) (*slog.Logger, io.Closer, error) {
+// New does not read or mutate the process environment, so concurrent
+// callers are safe.
+func New(level, dest, format string) (*slog.Logger, io.Closer, error) {
 	levelRaw := strings.ToLower(strings.TrimSpace(level))
-	if levelRaw == "" {
-		levelRaw = strings.ToLower(strings.TrimSpace(os.Getenv(EnvLevel)))
-	}
 	if levelRaw == "" {
 		levelRaw = "off"
 	}
 
 	parsed, levelOK := parseLevel(levelRaw)
 	if !levelOK {
-		fmt.Fprintln(os.Stderr, "dlog: unknown "+EnvLevel+"; falling back to default")
+		fmt.Fprintf(os.Stderr, "dlog: unknown level %q; falling back to default\n", level)
 		parsed, _ = parseLevel("off")
 		levelRaw = "off"
 	}
@@ -87,16 +77,16 @@ func New(level string) (*slog.Logger, io.Closer, error) {
 		return Discard, nopCloser{}, nil
 	}
 
-	formatRaw := strings.ToLower(strings.TrimSpace(os.Getenv(EnvFormat)))
+	formatRaw := strings.ToLower(strings.TrimSpace(format))
 	if formatRaw == "" {
 		formatRaw = "text"
 	}
 	if formatRaw != "text" && formatRaw != "json" {
-		fmt.Fprintln(os.Stderr, "dlog: unknown "+EnvFormat+"; falling back to default")
+		fmt.Fprintf(os.Stderr, "dlog: unknown format %q; falling back to default\n", format)
 		formatRaw = "text"
 	}
 
-	destRaw := strings.TrimSpace(os.Getenv(EnvDest))
+	destRaw := strings.TrimSpace(dest)
 	if destRaw == "" {
 		destRaw = "stderr"
 	}
@@ -114,12 +104,12 @@ func New(level string) (*slog.Logger, io.Closer, error) {
 		path := strings.TrimPrefix(destRaw, "file:")
 		expanded, err := expandHome(path)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "dlog: cannot resolve "+EnvDest+" path; falling back to default")
+			fmt.Fprintf(os.Stderr, "dlog: cannot resolve dest path %q; falling back to default\n", dest)
 			w = os.Stderr
 			break
 		}
 		if !filepath.IsAbs(expanded) {
-			fmt.Fprintln(os.Stderr, "dlog: "+EnvDest+" file path must be absolute; falling back to default")
+			fmt.Fprintf(os.Stderr, "dlog: dest file path %q must be absolute; falling back to default\n", dest)
 			w = os.Stderr
 			break
 		}
@@ -130,7 +120,7 @@ func New(level string) (*slog.Logger, io.Closer, error) {
 		w = f
 		closer = f
 	default:
-		fmt.Fprintln(os.Stderr, "dlog: unknown "+EnvDest+"; falling back to default")
+		fmt.Fprintf(os.Stderr, "dlog: unknown dest %q; falling back to default\n", dest)
 		w = os.Stderr
 	}
 

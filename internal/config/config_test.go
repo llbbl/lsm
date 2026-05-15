@@ -423,3 +423,48 @@ func TestResolve_ProjectConfigOverridesRegistry(t *testing.T) {
 		t.Errorf("App = %q, want %q (project config should override registry)", cfg.App, "projapp")
 	}
 }
+
+func TestLoadGlobalConfig_WithLogBlock(t *testing.T) {
+	dir := t.TempDir()
+	content := "env: dev\nlog:\n  level: debug\n  dest: stderr\n  format: json\n"
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := LoadGlobalConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig: %v", err)
+	}
+	if cfg.Log.Level != "debug" {
+		t.Errorf("Log.Level = %q, want %q", cfg.Log.Level, "debug")
+	}
+	if cfg.Log.Dest != "stderr" {
+		t.Errorf("Log.Dest = %q, want %q", cfg.Log.Dest, "stderr")
+	}
+	if cfg.Log.Format != "json" {
+		t.Errorf("Log.Format = %q, want %q", cfg.Log.Format, "json")
+	}
+
+	// Round-trip: marshal it back and ensure the log block is preserved.
+	out, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(out), "log:") {
+		t.Errorf("expected marshaled config to contain log block, got %q", out)
+	}
+}
+
+func TestLoadGlobalConfig_MissingLogBlock_DefaultsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("env: dev\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := LoadGlobalConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig: %v", err)
+	}
+	if cfg.Log != (LogConfig{}) {
+		t.Errorf("Log = %+v, want zero LogConfig", cfg.Log)
+	}
+}

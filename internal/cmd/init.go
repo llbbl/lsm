@@ -13,6 +13,18 @@ import (
 	"github.com/llbbl/lsm/internal/crypto"
 )
 
+// defaultConfigYAML is the initial contents of ~/.lsm/config.yaml. The
+// log block is commented out so the configuration surface is
+// discoverable without changing the default (silent) behavior.
+const defaultConfigYAML = `env: dev
+
+# Logging - defaults are "off" / stderr / text when unset.
+# log:
+#   level: debug         # off | error | warn | info | debug
+#   dest: stderr         # stderr | stdout | file:/absolute/path
+#   format: text         # text | json
+`
+
 func newInitCmd() *cobra.Command {
 	var force bool
 
@@ -48,10 +60,12 @@ func newInitCmd() *cobra.Command {
 				return fmt.Errorf("saving identity: %w", err)
 			}
 
-			// Create default config.yaml if it doesn't exist
+			// Create default config.yaml if it doesn't exist. The log
+			// block is commented out so users discover the surface
+			// without changing default behavior (dlog stays off).
 			configPath := filepath.Join(dir, "config.yaml")
 			if _, err := os.Stat(configPath); os.IsNotExist(err) {
-				if err := os.WriteFile(configPath, []byte("env: dev\n"), 0644); err != nil {
+				if err := os.WriteFile(configPath, []byte(defaultConfigYAML), 0644); err != nil {
 					return fmt.Errorf("writing default config: %w", err)
 				}
 			}
