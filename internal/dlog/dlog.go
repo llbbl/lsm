@@ -1,7 +1,7 @@
 // Package dlog is a thin wrapper over log/slog for internal flow
-// tracing. It is distinct from the audit log (forthcoming — see
-// lsm-dgs.2 et al), which records user-visible, durable events. dlog
-// is for developers debugging the binary, off by default.
+// tracing. It is distinct from the audit log (forthcoming), which
+// records user-visible, durable events. dlog is for developers
+// debugging the binary, off by default.
 //
 // Settings come from explicit parameters; lsm reads them from the
 // user's `~/.lsm/config.yaml` (the `log:` block) in PersistentPreRunE
