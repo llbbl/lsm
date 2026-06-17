@@ -17,9 +17,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version is set at build time via ldflags.
-var Version = "dev"
-
 var (
 	flagDir string
 	flagApp string
@@ -39,7 +36,7 @@ var activeDlog dlogState
 func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:           "lsm",
-		Version:       Version,
+		Version:       resolveVersion(),
 		Short:         "Local Secrets Manager - per-app encrypted secrets with age",
 		Long:          "lsm manages per-app, per-environment secrets encrypted with age.\nNo remote services, no billing, no accounts.",
 		SilenceUsage:  true,
@@ -73,7 +70,14 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().StringVarP(&flagApp, "app", "a", "", "app name (default: current directory name)")
 	rootCmd.PersistentFlags().StringVarP(&flagEnv, "env", "e", "", "environment name (default: from config)")
 
+	// Make `lsm --version` print the same rich, multi-line build details as
+	// `lsm version` rather than the default single-line "lsm version X".
+	// The template runs against rootCmd, but the detailed block needs runtime
+	// facts cobra doesn't carry, so render it eagerly here.
+	rootCmd.SetVersionTemplate(resolveVersionInfo().String())
+
 	rootCmd.AddCommand(
+		newVersionCmd(),
 		newInitCmd(),
 		newSetCmd(),
 		newGetCmd(),

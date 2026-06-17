@@ -5,8 +5,8 @@ go = "1.24"
 run = "go build ./cmd/lsm"
 
 [tasks.local]
-run = 'go build -ldflags="-s -w -X github.com/llbbl/lsm/internal/cmd.Version=$(cat VERSION)" -o ~/.local/bin/lsm ./cmd/lsm'
-description = "Build and install lsm to ~/.local/bin"
+run = 'go build -ldflags="-s -w" -o ~/.local/bin/lsm ./cmd/lsm'
+description = "Build and install lsm to ~/.local/bin (version comes from BuildInfo)"
 
 [tasks.test]
 run = "go test ./..."
@@ -20,55 +20,49 @@ run = "git cliff -o CHANGELOG.md"
 [tasks.changelog-preview]
 run = "git cliff --unreleased"
 
-# Release paths:
+# Release paths (git tag is the single source of truth — no VERSION file):
 #   Automatic: PR merge → auto-release.yml determines bump type from commits → tags → release.yml builds
-#   Manual:    mise run release-patch/minor/major → bumps VERSION, commits, tags, pushes → release.yml builds
+#   Manual:    mise run release-patch/minor/major → derives latest tag, increments, creates annotated tag, pushes → release.yml builds
 
 [tasks.version]
-run = "cat VERSION"
-description = "Show current version"
+run = "git describe --tags --always"
+description = "Show current version (derived from git)"
 
 [tasks.bump-patch]
-description = "Increment patch version, commit, and tag"
+description = "Increment patch version and create an annotated tag"
 run = """
-VERSION=$(cat VERSION)
-IFS='.' read -r major minor patch <<< "$VERSION"
+CUR=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+CUR=${CUR#v}
+IFS='.' read -r major minor patch <<< "$CUR"
 patch=$((patch + 1))
 NEW="${major}.${minor}.${patch}"
-echo "$NEW" > VERSION
-git add VERSION
-git commit -m "chore(release): bump version to $NEW"
 git tag -a "v$NEW" -m "Release v$NEW"
 echo "Bumped to $NEW (v$NEW)"
 """
 
 [tasks.bump-minor]
-description = "Increment minor version, reset patch, commit, and tag"
+description = "Increment minor version, reset patch, and create an annotated tag"
 run = """
-VERSION=$(cat VERSION)
-IFS='.' read -r major minor patch <<< "$VERSION"
+CUR=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+CUR=${CUR#v}
+IFS='.' read -r major minor patch <<< "$CUR"
 minor=$((minor + 1))
 patch=0
 NEW="${major}.${minor}.${patch}"
-echo "$NEW" > VERSION
-git add VERSION
-git commit -m "chore(release): bump version to $NEW"
 git tag -a "v$NEW" -m "Release v$NEW"
 echo "Bumped to $NEW (v$NEW)"
 """
 
 [tasks.bump-major]
-description = "Increment major version, reset minor and patch, commit, and tag"
+description = "Increment major version, reset minor and patch, and create an annotated tag"
 run = """
-VERSION=$(cat VERSION)
-IFS='.' read -r major minor patch <<< "$VERSION"
+CUR=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+CUR=${CUR#v}
+IFS='.' read -r major minor patch <<< "$CUR"
 major=$((major + 1))
 minor=0
 patch=0
 NEW="${major}.${minor}.${patch}"
-echo "$NEW" > VERSION
-git add VERSION
-git commit -m "chore(release): bump version to $NEW"
 git tag -a "v$NEW" -m "Release v$NEW"
 echo "Bumped to $NEW (v$NEW)"
 """
