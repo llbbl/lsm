@@ -5,7 +5,7 @@ A lightweight CLI for managing per-app, per-environment secrets encrypted with [
 ## Install
 
 ```bash
-go install github.com/llbbl/lsm@latest
+go install github.com/llbbl/lsm/cmd/lsm@latest
 ```
 
 ## Quick Start

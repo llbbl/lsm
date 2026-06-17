@@ -5,7 +5,7 @@ This guide walks through the full setup: from installing lsm to running your app
 ## 1. Install
 
 ```bash
-go install github.com/llbbl/lsm@latest
+go install github.com/llbbl/lsm/cmd/lsm@latest
 ```
 
 Verify the installation:
