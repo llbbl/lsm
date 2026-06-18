@@ -31,7 +31,7 @@ func TestComputeHash_Deterministic(t *testing.T) {
 		t.Fatalf("hash should be 64 hex chars, got %d", len(h1))
 	}
 	for _, r := range h1 {
-		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
 			t.Fatalf("hash contains non-hex char %q", r)
 		}
 	}

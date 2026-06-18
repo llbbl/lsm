@@ -348,7 +348,7 @@ func (s *OTLPSink) post(body []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// Drain response body so the connection can be reused.
 	_, _ = io.Copy(io.Discard, resp.Body)
 	return resp.StatusCode, nil

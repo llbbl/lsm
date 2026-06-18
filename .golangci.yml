@@ -1,0 +1,25 @@
+# golangci-lint v2 configuration.
+# Schema reference: https://golangci-lint.run/usage/configuration/
+version: "2"
+
+linters:
+  # The v2 "standard" default set: errcheck, govet, ineffassign,
+  # staticcheck, unused. A sensible, low-noise baseline.
+  default: standard
+
+  exclusions:
+    generated: lax
+    # std-error-handling excludes the well-known, low-value errcheck
+    # cases: unchecked errors from fmt.Fprint*/Fprintf/Fprintln (writing
+    # to stdout/stderr) and (*os.File).Close on read paths. These are
+    # idiomatic to ignore and checking them adds noise without value.
+    presets:
+      - std-error-handling
+    rules:
+      # In tests we routinely `defer x.Close()` on resources whose Close
+      # error is irrelevant to the test outcome. Exclude those here so we
+      # don't litter test code with `_ =` assignments.
+      - path: _test\.go
+        linters:
+          - errcheck
+        source: \.Close\(\)$

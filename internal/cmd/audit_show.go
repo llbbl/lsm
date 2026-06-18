@@ -41,7 +41,7 @@ func newAuditShowCmd() *cobra.Command {
 			}
 
 			warn := func(msg string) {
-				fmt.Fprintln(cmd.ErrOrStderr(), "warning:", msg)
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "warning:", msg)
 			}
 			e, err := audit.Show(resolved, seq, warn)
 			if err != nil {
@@ -72,27 +72,27 @@ func newAuditShowCmd() *cobra.Command {
 
 // writeEventShowText renders one event in multi-line pretty form.
 func writeEventShowText(out io.Writer, e audit.Event) error {
-	fmt.Fprintf(out, "seq:             %d\n", e.Seq)
-	fmt.Fprintf(out, "ts:              %s\n", e.Timestamp.UTC().Format(time.RFC3339Nano))
-	fmt.Fprintf(out, "event:           %s\n", e.Event)
-	fmt.Fprintf(out, "app:             %s\n", e.App)
-	fmt.Fprintf(out, "env:             %s\n", e.Env)
-	fmt.Fprintf(out, "schema_version:  %d\n", e.SchemaVersion)
-	fmt.Fprintf(out, "local_only:      %v\n", e.LocalOnly)
-	fmt.Fprintf(out, "actor.ppid:         %d\n", e.Actor.PPID)
-	fmt.Fprintf(out, "actor.parent_comm:  %s\n", e.Actor.ParentComm)
-	fmt.Fprintf(out, "actor.tty:          %s\n", e.Actor.TTY)
-	fmt.Fprintf(out, "actor.cwd:          %s\n", e.Actor.CWD)
-	fmt.Fprintf(out, "actor.agent_marker: %s\n", e.Actor.AgentMarker)
-	fmt.Fprintf(out, "actor.uid:          %d\n", e.Actor.UID)
+	_, _ = fmt.Fprintf(out, "seq:             %d\n", e.Seq)
+	_, _ = fmt.Fprintf(out, "ts:              %s\n", e.Timestamp.UTC().Format(time.RFC3339Nano))
+	_, _ = fmt.Fprintf(out, "event:           %s\n", e.Event)
+	_, _ = fmt.Fprintf(out, "app:             %s\n", e.App)
+	_, _ = fmt.Fprintf(out, "env:             %s\n", e.Env)
+	_, _ = fmt.Fprintf(out, "schema_version:  %d\n", e.SchemaVersion)
+	_, _ = fmt.Fprintf(out, "local_only:      %v\n", e.LocalOnly)
+	_, _ = fmt.Fprintf(out, "actor.ppid:         %d\n", e.Actor.PPID)
+	_, _ = fmt.Fprintf(out, "actor.parent_comm:  %s\n", e.Actor.ParentComm)
+	_, _ = fmt.Fprintf(out, "actor.tty:          %s\n", e.Actor.TTY)
+	_, _ = fmt.Fprintf(out, "actor.cwd:          %s\n", e.Actor.CWD)
+	_, _ = fmt.Fprintf(out, "actor.agent_marker: %s\n", e.Actor.AgentMarker)
+	_, _ = fmt.Fprintf(out, "actor.uid:          %d\n", e.Actor.UID)
 	if len(e.Fields) > 0 {
 		body, err := json.MarshalIndent(e.Fields, "", "  ")
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "fields:          %s\n", string(body))
+		_, _ = fmt.Fprintf(out, "fields:          %s\n", string(body))
 	}
-	fmt.Fprintf(out, "prev:            %s\n", e.Prev)
-	fmt.Fprintf(out, "hash:            %s\n", e.Hash)
+	_, _ = fmt.Fprintf(out, "prev:            %s\n", e.Prev)
+	_, _ = fmt.Fprintf(out, "hash:            %s\n", e.Hash)
 	return nil
 }
