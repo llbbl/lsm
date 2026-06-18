@@ -4,13 +4,25 @@
 package cmd
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/llbbl/lsm/internal/config"
 )
+
+// newTestCmd returns a cobra.Command whose stdout/stderr are discarded,
+// for exercising helpers that surface output through the command.
+func newTestCmd() *cobra.Command {
+	c := &cobra.Command{}
+	c.SetOut(io.Discard)
+	c.SetErr(io.Discard)
+	return c
+}
 
 func TestResolveDir_Default(t *testing.T) {
 	// Reset global flag
@@ -52,7 +64,7 @@ func TestOpenStore_MissingKeyFile(t *testing.T) {
 		Env: "dev",
 	}
 
-	_, err := openStore(cfg)
+	_, err := openStore(newTestCmd(), cfg)
 	if err == nil {
 		t.Fatal("expected error when key file is missing")
 	}

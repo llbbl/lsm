@@ -19,7 +19,7 @@ func newListCmd() *cobra.Command {
 				return err
 			}
 
-			s, err := openStore(cfg)
+			s, err := openStore(cmd, cfg)
 			if err != nil {
 				return err
 			}

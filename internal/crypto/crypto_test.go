@@ -6,6 +6,7 @@ package crypto
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -52,9 +53,12 @@ func TestSaveAndLoadIdentity(t *testing.T) {
 	}
 
 	// Load and verify
-	loaded, err := LoadIdentity(keyPath)
+	loaded, warnCount, err := LoadIdentity(keyPath)
 	if err != nil {
 		t.Fatalf("LoadIdentity() error: %v", err)
+	}
+	if warnCount != 0 {
+		t.Errorf("warnCount = %d, want 0", warnCount)
 	}
 	if loaded.String() != id.String() {
 		t.Errorf("loaded identity doesn't match: got %s, want %s", loaded.String(), id.String())
@@ -65,7 +69,7 @@ func TestSaveAndLoadIdentity(t *testing.T) {
 }
 
 func TestLoadIdentity_NotFound(t *testing.T) {
-	_, err := LoadIdentity("/nonexistent/key.txt")
+	_, _, err := LoadIdentity("/nonexistent/key.txt")
 	if err == nil {
 		t.Fatal("expected error for missing key file")
 	}
@@ -78,7 +82,7 @@ func TestLoadIdentity_InvalidContent(t *testing.T) {
 		t.Fatalf("writing key file: %v", err)
 	}
 
-	_, err := LoadIdentity(keyPath)
+	_, _, err := LoadIdentity(keyPath)
 	if err == nil {
 		t.Fatal("expected error for invalid key file")
 	}
@@ -152,7 +156,7 @@ func TestLoadIdentity_EmptyFile(t *testing.T) {
 		t.Fatalf("writing key file: %v", err)
 	}
 
-	_, err := LoadIdentity(keyPath)
+	_, _, err := LoadIdentity(keyPath)
 	if err == nil {
 		t.Fatal("expected error for empty key file")
 	}
@@ -165,7 +169,7 @@ func TestLoadIdentity_OnlyComments(t *testing.T) {
 		t.Fatalf("writing key file: %v", err)
 	}
 
-	_, err := LoadIdentity(keyPath)
+	_, _, err := LoadIdentity(keyPath)
 	if err == nil {
 		t.Fatal("expected error for key file with only comments")
 	}
@@ -179,9 +183,99 @@ func TestLoadIdentity_MalformedKey(t *testing.T) {
 		t.Fatalf("writing key file: %v", err)
 	}
 
-	_, err := LoadIdentity(keyPath)
+	_, _, err := LoadIdentity(keyPath)
 	if err == nil {
 		t.Fatal("expected error for malformed key content")
+	}
+}
+
+func TestLoadIdentity_RejectsGroupOtherReadable(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "key.txt")
+
+	id, err := GenerateIdentity()
+	if err != nil {
+		t.Fatalf("GenerateIdentity() error: %v", err)
+	}
+	if err := SaveIdentity(keyPath, id); err != nil {
+		t.Fatalf("SaveIdentity() error: %v", err)
+	}
+	// Weaken to group/other-readable.
+	if err := os.Chmod(keyPath, 0644); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+
+	_, _, err = LoadIdentity(keyPath)
+	if err == nil {
+		t.Fatal("expected error for 0644 (group/other-accessible) key file")
+	}
+	if !strings.Contains(err.Error(), "refusing to load") {
+		t.Errorf("error should explain refusal, got: %v", err)
+	}
+}
+
+func TestLoadIdentity_AcceptsOwnerOnlyModes(t *testing.T) {
+	id, err := GenerateIdentity()
+	if err != nil {
+		t.Fatalf("GenerateIdentity() error: %v", err)
+	}
+
+	// Modes that grant no group/other bits should all load fine.
+	for _, mode := range []os.FileMode{0400, 0600, 0700} {
+		t.Run(mode.String(), func(t *testing.T) {
+			dir := t.TempDir()
+			keyPath := filepath.Join(dir, "key.txt")
+			if err := SaveIdentity(keyPath, id); err != nil {
+				t.Fatalf("SaveIdentity() error: %v", err)
+			}
+			if err := os.Chmod(keyPath, mode); err != nil {
+				t.Fatalf("chmod: %v", err)
+			}
+
+			loaded, warnCount, err := LoadIdentity(keyPath)
+			if err != nil {
+				t.Fatalf("LoadIdentity() error: %v", err)
+			}
+			if warnCount != 0 {
+				t.Errorf("warnCount = %d, want 0 for single identity", warnCount)
+			}
+			if loaded.String() != id.String() {
+				t.Error("loaded identity does not match")
+			}
+		})
+	}
+}
+
+func TestLoadIdentity_MultipleIdentities_UsesFirstAndWarns(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "key.txt")
+
+	first, err := GenerateIdentity()
+	if err != nil {
+		t.Fatalf("GenerateIdentity() error: %v", err)
+	}
+	second, err := GenerateIdentity()
+	if err != nil {
+		t.Fatalf("GenerateIdentity() error: %v", err)
+	}
+
+	// Write two secret-key lines into one file (simulating an appended
+	// rotated key), at owner-only mode so the permission check passes.
+	content := first.String() + "\n" + second.String() + "\n"
+	if err := os.WriteFile(keyPath, []byte(content), 0600); err != nil {
+		t.Fatalf("writing key file: %v", err)
+	}
+
+	loaded, warnCount, err := LoadIdentity(keyPath)
+	if err != nil {
+		t.Fatalf("LoadIdentity() error: %v", err)
+	}
+	if warnCount != 1 {
+		t.Errorf("warnCount = %d, want 1 (one extra identity)", warnCount)
+	}
+	// First identity is the one used.
+	if loaded.String() != first.String() {
+		t.Error("LoadIdentity should use the first identity")
 	}
 }
 

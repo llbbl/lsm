@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"filippo.io/age"
+	"github.com/spf13/cobra"
 
 	"github.com/llbbl/lsm/internal/config"
 	"github.com/llbbl/lsm/internal/crypto"
@@ -30,15 +31,27 @@ func resolveDir() (string, error) {
 	return filepath.Join(home, ".lsm"), nil
 }
 
-// loadIdentity loads the age identity from the lsm directory.
-func loadIdentity(dir string) (*age.X25519Identity, error) {
+// loadIdentity loads the age identity from the lsm directory. When the
+// key file holds more than one identity, only the first is used and a
+// warning is written to cmd's stderr so the user notices (e.g. after a
+// botched key rotation that appended instead of replacing).
+func loadIdentity(cmd *cobra.Command, dir string) (*age.X25519Identity, error) {
 	keyPath := filepath.Join(dir, "key.txt")
-	return crypto.LoadIdentity(keyPath)
+	id, warnCount, err := crypto.LoadIdentity(keyPath)
+	if err != nil {
+		return nil, err
+	}
+	if warnCount > 0 {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+			"warning: %s contains %d identities; using only the first. Remove the extras or re-run 'lsm init' to rotate the key.\n",
+			keyPath, warnCount+1)
+	}
+	return id, nil
 }
 
 // openStore creates, loads, and returns a Store for the given config.
-func openStore(cfg *config.Config) (*store.Store, error) {
-	id, err := loadIdentity(cfg.Dir)
+func openStore(cmd *cobra.Command, cfg *config.Config) (*store.Store, error) {
+	id, err := loadIdentity(cmd, cfg.Dir)
 	if err != nil {
 		return nil, err
 	}
@@ -131,8 +144,10 @@ func maskValue(value string) string {
 	}
 }
 
-// isTerminal checks if stdin is a terminal (character device).
-func isTerminal() bool {
+// isTerminal checks if stdin is a terminal (character device). It is a
+// package-level var so tests can force the interactive / non-interactive
+// path deterministically regardless of how the test runner wires stdin.
+var isTerminal = func() bool {
 	fi, err := os.Stdin.Stat()
 	if err != nil {
 		return false

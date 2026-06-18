@@ -180,6 +180,89 @@ func TestDump(t *testing.T) {
 	}
 }
 
+// forceNonInteractive overrides isTerminal to report a non-terminal
+// stdin for the duration of the test, regardless of how the test runner
+// wired os.Stdin (it can be a char device under some runners).
+func forceNonInteractive(t *testing.T) {
+	t.Helper()
+	orig := isTerminal
+	isTerminal = func() bool { return false }
+	t.Cleanup(func() { isTerminal = orig })
+}
+
+func TestDump_ExistingFile_NonInteractive_NoForce_Errors(t *testing.T) {
+	dir := setupTestEnv(t)
+	forceNonInteractive(t)
+
+	outDir := t.TempDir()
+	t.Chdir(outDir)
+
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "DB_URL", "postgres://localhost"); err != nil {
+		t.Fatalf("set DB_URL error: %v", err)
+	}
+
+	// Pre-create the output file with sentinel content. In tests
+	// isTerminal() is false, so this is the non-interactive path.
+	original := []byte("PRE_EXISTING=keepme\n")
+	outFile := filepath.Join(outDir, ".env")
+	if err := os.WriteFile(outFile, original, 0600); err != nil {
+		t.Fatalf("writing pre-existing .env: %v", err)
+	}
+
+	_, err := runCmd(t, "dump", "--dir", dir, "--app", "testapp", "--env", "dev")
+	if err == nil {
+		t.Fatal("expected error overwriting existing file with no --force in non-terminal")
+	}
+	if !strings.Contains(err.Error(), "--force") {
+		t.Errorf("error should mention --force, got: %v", err)
+	}
+
+	// Original file must be untouched.
+	got, readErr := os.ReadFile(outFile)
+	if readErr != nil {
+		t.Fatalf("reading .env after aborted dump: %v", readErr)
+	}
+	if string(got) != string(original) {
+		t.Errorf("output file was modified; got %q, want %q", got, original)
+	}
+}
+
+func TestDump_ExistingFile_Force_Overwrites(t *testing.T) {
+	dir := setupTestEnv(t)
+
+	outDir := t.TempDir()
+	t.Chdir(outDir)
+
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "DB_URL", "postgres://localhost"); err != nil {
+		t.Fatalf("set DB_URL error: %v", err)
+	}
+
+	outFile := filepath.Join(outDir, ".env")
+	if err := os.WriteFile(outFile, []byte("PRE_EXISTING=keepme\n"), 0600); err != nil {
+		t.Fatalf("writing pre-existing .env: %v", err)
+	}
+
+	out, err := runCmd(t, "dump", "--dir", dir, "--app", "testapp", "--env", "dev", "--force")
+	if err != nil {
+		t.Fatalf("dump --force error: %v", err)
+	}
+	if !strings.Contains(out, "Wrote 1 secrets to .env") {
+		t.Errorf("dump --force missing write confirmation: %s", out)
+	}
+
+	// File should now contain the real secret content, not the sentinel.
+	got, readErr := os.ReadFile(outFile)
+	if readErr != nil {
+		t.Fatalf("reading .env after forced dump: %v", readErr)
+	}
+	if strings.Contains(string(got), "PRE_EXISTING") {
+		t.Errorf("output file still has old content after --force: %q", got)
+	}
+	if !strings.Contains(string(got), "DB_URL=") {
+		t.Errorf("output file missing dumped secret: %q", got)
+	}
+}
+
 func TestApps(t *testing.T) {
 	dir := setupTestEnv(t)
 

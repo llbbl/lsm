@@ -20,30 +20,56 @@ func GenerateIdentity() (*age.X25519Identity, error) {
 
 // LoadIdentity reads an age identity from the given key file path.
 // The file should contain a Bech32-encoded age secret key line.
-func LoadIdentity(keyPath string) (*age.X25519Identity, error) {
-	data, err := os.ReadFile(keyPath)
+//
+// The key file must not grant any permission bits to group or other —
+// concretely, the check is `mode & 0o077 == 0`. Modes 0400, 0500, 0600
+// (which SaveIdentity itself writes), and 0700 are accepted; stricter
+// modes just remove access lsm doesn't need. Group/other-readable modes
+// (0640, 0644, 0660, etc.) are rejected rather than loaded, because a
+// private key readable by other users is a key disclosure waiting to
+// happen and that must be corrected explicitly, not used silently.
+//
+// If the file holds more than one identity, the first is used and the
+// extra count is returned via warnCount so callers can surface a warning
+// (the crypto package is a library and does not write to stderr itself).
+// warnCount is the number of additional identities beyond the first; it
+// is 0 in the normal single-identity case.
+func LoadIdentity(keyPath string) (id *age.X25519Identity, warnCount int, err error) {
+	info, err := os.Stat(keyPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("key file not found: %s (run 'lsm init' to create one)", keyPath)
+			return nil, 0, fmt.Errorf("key file not found: %s (run 'lsm init' to create one)", keyPath)
 		}
-		return nil, fmt.Errorf("reading key file: %w", err)
+		return nil, 0, fmt.Errorf("stat key file: %w", err)
+	}
+	// Reject any mode that grants group or other a permission bit. The
+	// private key must stay owner-only; SaveIdentity writes 0600, so this
+	// just enforces what we create.
+	mode := info.Mode().Perm()
+	if mode&0o077 != 0 {
+		return nil, 0, fmt.Errorf("key file %s has mode %#o (grants group/other access); refusing to load private key — run 'chmod 600 %s'", keyPath, mode, keyPath)
+	}
+
+	data, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, 0, fmt.Errorf("reading key file: %w", err)
 	}
 
 	identities, err := age.ParseIdentities(bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("parsing key file: %w", err)
+		return nil, 0, fmt.Errorf("parsing key file: %w", err)
 	}
 
 	if len(identities) == 0 {
-		return nil, fmt.Errorf("no identities found in %s", keyPath)
+		return nil, 0, fmt.Errorf("no identities found in %s", keyPath)
 	}
 
-	id, ok := identities[0].(*age.X25519Identity)
+	x, ok := identities[0].(*age.X25519Identity)
 	if !ok {
-		return nil, fmt.Errorf("unexpected identity type in %s", keyPath)
+		return nil, 0, fmt.Errorf("unexpected identity type in %s", keyPath)
 	}
 
-	return id, nil
+	return x, len(identities) - 1, nil
 }
 
 // SaveIdentity writes an age identity to the given path with a comment header.

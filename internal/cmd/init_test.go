@@ -201,7 +201,7 @@ func TestInitCmd_GeneratesValidKey(t *testing.T) {
 
 	// Try to load the key
 	keyPath := filepath.Join(dir, "key.txt")
-	identity, err := crypto.LoadIdentity(keyPath)
+	identity, _, err := crypto.LoadIdentity(keyPath)
 	if err != nil {
 		t.Fatalf("loading generated key: %v", err)
 	}
