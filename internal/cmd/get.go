@@ -26,7 +26,7 @@ func newGetCmd() *cobra.Command {
 
 			key := remaining[0]
 
-			s, err := openStore(cfg)
+			s, err := openStore(cmd, cfg)
 			if err != nil {
 				return err
 			}

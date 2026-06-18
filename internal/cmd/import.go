@@ -54,7 +54,7 @@ you'll be asked to specify which one.`,
 				return fmt.Errorf("reading input: %w", err)
 			}
 
-			s, err := openStore(cfg)
+			s, err := openStore(cmd, cfg)
 			if err != nil {
 				return err
 			}

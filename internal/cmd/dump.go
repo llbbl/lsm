@@ -24,7 +24,7 @@ func newDumpCmd() *cobra.Command {
 				return err
 			}
 
-			s, err := openStore(cfg)
+			s, err := openStore(cmd, cfg)
 			if err != nil {
 				return err
 			}
@@ -41,18 +41,24 @@ func newDumpCmd() *cobra.Command {
 				output = ".env"
 			}
 
+			force, _ := cmd.Flags().GetBool("force")
+
 			// Check if output file already exists.
-			if _, err := os.Stat(output); err == nil {
-				// File exists — prompt for confirmation.
-				if isTerminal() {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s already exists. Overwrite? [y/N] ", output)
-					scanner := bufio.NewScanner(cmd.InOrStdin())
-					if scanner.Scan() {
-						response := strings.TrimSpace(strings.ToLower(scanner.Text()))
-						if response != "y" && response != "yes" {
-							_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
-							return nil
-						}
+			if _, err := os.Stat(output); err == nil && !force {
+				// File exists and --force not given. Refuse to clobber it
+				// without confirmation. Without a terminal we cannot prompt,
+				// so error out rather than silently overwriting (data loss
+				// in CI / piped invocations like `lsm dump < /dev/null`).
+				if !isTerminal() {
+					return fmt.Errorf("%s already exists; refusing to overwrite (not a terminal); use --force", output)
+				}
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s already exists. Overwrite? [y/N] ", output)
+				scanner := bufio.NewScanner(cmd.InOrStdin())
+				if scanner.Scan() {
+					response := strings.TrimSpace(strings.ToLower(scanner.Text()))
+					if response != "y" && response != "yes" {
+						_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+						return nil
 					}
 				}
 			}
@@ -85,6 +91,7 @@ func newDumpCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringP("output", "o", "", "output file path (default: .env)")
+	cmd.Flags().BoolP("force", "f", false, "overwrite an existing output file without prompting")
 
 	return cmd
 }

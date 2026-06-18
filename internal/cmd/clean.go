@@ -37,7 +37,7 @@ overwrite (zero-fill before remove).`,
 				return err
 			}
 
-			s, err := openStore(cfg)
+			s, err := openStore(cmd, cfg)
 			if err != nil {
 				return err
 			}
