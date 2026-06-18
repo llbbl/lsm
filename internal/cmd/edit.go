@@ -30,8 +30,17 @@ func newEditCmd() *cobra.Command {
 
 			editor := determineEditor()
 
-			// Write decrypted content to temp file
-			tmpFile, err := os.CreateTemp("", "lsm-edit-*.env")
+			// Write decrypted content to a temp file *inside* the lsm
+			// directory (cfg.Dir, ~/.lsm, mode 0700) rather than the shared
+			// system $TMPDIR. $TMPDIR is often a world-readable location like
+			// /tmp; writing decrypted secrets there exposes the plaintext to
+			// other local users for the duration of the editor session and
+			// leaves it behind if the process is SIGKILLed before the deferred
+			// secureRemove runs. Keeping it in the owner-only lsm dir confines
+			// the plaintext to a directory only the owner can traverse.
+			// os.CreateTemp creates the file with mode 0600 (owner read/write
+			// only), and the deferred secureRemove below still cleans it up.
+			tmpFile, err := os.CreateTemp(cfg.Dir, "lsm-edit-*.env")
 			if err != nil {
 				return fmt.Errorf("creating temp file: %w", err)
 			}

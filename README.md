@@ -4,9 +4,21 @@ A lightweight CLI for managing per-app, per-environment secrets encrypted with [
 
 ## Install
 
+If you have Go installed:
+
 ```bash
 go install github.com/llbbl/lsm/cmd/lsm@latest
 ```
+
+Otherwise, install the latest release with the curl one-liner (Linux/macOS):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/llbbl/lsm/main/scripts/install.sh | sh
+```
+
+It downloads the matching archive, verifies its checksum, and installs `lsm`
+to `~/.local/bin` (override with `LSM_BIN`; pin a version with `LSM_VERSION`).
+Windows users: download the `.zip` from the [releases page](https://github.com/llbbl/lsm/releases) and follow the bundled `INSTALL.md`.
 
 ## Quick Start
 

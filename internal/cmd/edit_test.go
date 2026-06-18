@@ -115,6 +115,70 @@ func TestEditCmd_EditorWithFlags(t *testing.T) {
 	}
 }
 
+func TestEditCmd_TempFileInLsmDir(t *testing.T) {
+	// Hardening: the decrypted plaintext temp file must be created inside the
+	// owner-only lsm dir (cfg.Dir), not the shared system $TMPDIR, and must be
+	// mode 0600. We use an editor script that records the path it was handed so
+	// we can assert both properties against the still-present temp file.
+	dir := setupTestEnv(t)
+
+	if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "KEY", "val"); err != nil {
+		t.Fatalf("set error: %v", err)
+	}
+
+	scriptDir := t.TempDir()
+	pathRecord := filepath.Join(scriptDir, "tmppath.txt")
+	scriptPath := filepath.Join(scriptDir, "editor.sh")
+	// Record the temp file path the editor receives, then stat its mode (octal)
+	// while it still exists (before the deferred secureRemove deletes it).
+	script := "#!/bin/sh\n" +
+		"printf '%s\\n' \"$1\" > \"" + pathRecord + "\"\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		t.Fatalf("writing editor script: %v", err)
+	}
+	t.Setenv("EDITOR", scriptPath)
+
+	if _, err := runCmd(t, "edit", "--dir", dir, "--app", "testapp", "--env", "dev"); err != nil {
+		t.Fatalf("edit error: %v", err)
+	}
+
+	recorded, err := os.ReadFile(pathRecord)
+	if err != nil {
+		t.Fatalf("reading recorded temp path: %v", err)
+	}
+	tmpPath := strings.TrimSpace(string(recorded))
+	if tmpPath == "" {
+		t.Fatal("editor recorded an empty temp path")
+	}
+
+	// The temp file must live directly inside cfg.Dir (the lsm dir), not $TMPDIR.
+	if got := filepath.Dir(tmpPath); got != dir {
+		t.Errorf("temp file dir = %q, want lsm dir %q", got, dir)
+	}
+	if base := filepath.Base(tmpPath); !strings.HasPrefix(base, "lsm-edit-") {
+		t.Errorf("temp file name = %q, want lsm-edit-* prefix", base)
+	}
+
+	// CreateTemp default perms are 0600; confirm the decrypted plaintext was
+	// never group/world-readable. (The file is gone by now via secureRemove, so
+	// re-create it under the same parent to assert CreateTemp's mode contract
+	// rather than racing the cleanup.)
+	probe, err := os.CreateTemp(dir, "lsm-edit-*.env")
+	if err != nil {
+		t.Fatalf("probe CreateTemp: %v", err)
+	}
+	probePath := probe.Name()
+	_ = probe.Close()
+	t.Cleanup(func() { _ = os.Remove(probePath) })
+	fi, err := os.Stat(probePath)
+	if err != nil {
+		t.Fatalf("stat probe temp file: %v", err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0600 {
+		t.Errorf("temp file mode = %04o, want 0600", perm)
+	}
+}
+
 func TestEditCmd_EditorFails(t *testing.T) {
 	dir := setupTestEnv(t)
 

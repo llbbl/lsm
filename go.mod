@@ -1,6 +1,6 @@
 module github.com/llbbl/lsm
 
-go 1.24.0
+go 1.25.0
 
 require (
 	filippo.io/age v1.3.1
@@ -11,7 +11,7 @@ require (
 require (
 	filippo.io/hpke v0.4.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
+	golang.org/x/crypto v0.53.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
 )
