@@ -165,7 +165,7 @@ jobs:
         run: |
           git-cliff --tag "$TAG" --latest -o CHANGELOG.md
 
-      - name: Build binaries
+      - name: Build and package archives
         env:
           TAG: ${{ steps.resolve-tag.outputs.tag }}
         run: |
@@ -179,26 +179,59 @@ jobs:
           )
           for platform in "${platforms[@]}"; do
             IFS='/' read -r os arch <<< "$platform"
-            output="dist/lsm-${os}-${arch}"
+
+            # Each archive is built from a clean per-platform staging dir
+            # so it contains exactly: the binary (renamed to lsm/lsm.exe),
+            # a tailored INSTALL.md, and LICENSE.
+            stage="dist/stage-${os}-${arch}"
+            rm -rf "$stage"
+            mkdir -p "$stage"
+
+            binname="lsm"
+            template="scripts/install-templates/INSTALL-unix.md"
             if [ "$os" = "windows" ]; then
-              output="${output}.exe"
+              binname="lsm.exe"
+              template="scripts/install-templates/INSTALL-windows.md"
             fi
+
             echo "Building $os/$arch..."
             GOOS="$os" GOARCH="$arch" go build \
               -ldflags="-s -w -X github.com/llbbl/lsm/internal/cmd.Version=$TAG" \
-              -o "$output" ./cmd/lsm
+              -o "$stage/$binname" ./cmd/lsm
+
+            cp "$template" "$stage/INSTALL.md"
+            cp LICENSE "$stage/LICENSE"
+
+            archive_base="lsm-${TAG}-${os}-${arch}"
+            if [ "$os" = "windows" ]; then
+              echo "Packaging ${archive_base}.zip..."
+              ( cd "$stage" && zip -q -r "../${archive_base}.zip" . )
+            else
+              echo "Packaging ${archive_base}.tar.gz..."
+              tar czf "dist/${archive_base}.tar.gz" -C "$stage" .
+            fi
+
+            rm -rf "$stage"
           done
+
+          # Include the installer as a release asset so the curl one-liner
+          # always points at a published, versioned copy too.
+          cp scripts/install.sh dist/install.sh
 
       - name: Create checksums
         run: |
           cd dist
-          sha256sum lsm-* > checksums.txt
+          # Checksums cover the archives plus install.sh — no bare binaries.
+          # Use bare globs (not ./*) so checksums.txt lists plain filenames,
+          # which is the format scripts/install.sh greps for ("  <name>").
+          sha256sum *.tar.gz *.zip install.sh > checksums.txt
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.resolve-tag.outputs.tag }}
         run: |
-          gh release create "$TAG" dist/* \
+          gh release create "$TAG" \
+            dist/*.tar.gz dist/*.zip dist/checksums.txt dist/install.sh \
             --title "$TAG" \
             --notes-file CHANGELOG.md

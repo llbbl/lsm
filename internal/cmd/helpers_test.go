@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -295,6 +296,43 @@ func TestSecureRemove(t *testing.T) {
 	t.Run("no error if file already gone", func(t *testing.T) {
 		if err := secureRemove("/nonexistent/path/gone.txt"); err != nil {
 			t.Errorf("secureRemove() on missing file: %v", err)
+		}
+	})
+
+	t.Run("symlink is not followed: target left intact", func(t *testing.T) {
+		dir := t.TempDir()
+
+		// A regular target file with known contents.
+		target := filepath.Join(dir, "target.txt")
+		want := []byte("important data that must survive")
+		if err := os.WriteFile(target, want, 0600); err != nil {
+			t.Fatalf("writing target file: %v", err)
+		}
+
+		// A symlink pointing at the target.
+		link := filepath.Join(dir, "link.env")
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatalf("creating symlink: %v", err)
+		}
+
+		// secureRemove on the symlink must remove the link, not zero-fill
+		// or delete the target it points to.
+		if err := secureRemove(link); err != nil {
+			t.Fatalf("secureRemove(symlink) error: %v", err)
+		}
+
+		// The symlink itself is gone.
+		if _, err := os.Lstat(link); !os.IsNotExist(err) {
+			t.Errorf("symlink still exists after secureRemove: err = %v", err)
+		}
+
+		// The target still exists and is byte-for-byte unchanged.
+		got, err := os.ReadFile(target)
+		if err != nil {
+			t.Fatalf("target file missing or unreadable after secureRemove: %v", err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Errorf("target contents = %q, want %q (target was modified)", got, want)
 		}
 	})
 }

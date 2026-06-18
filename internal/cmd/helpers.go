@@ -239,14 +239,30 @@ func findEnvFiles() ([]string, error) {
 	return found, nil
 }
 
-// secureRemove overwrites a file with zeros before deleting it.
+// secureRemove overwrites a regular file with zeros before deleting it.
+//
+// It uses os.Lstat (not os.Stat) so that symlinks are inspected without being
+// followed. If the path is a symlink — or any non-regular file such as a
+// device, fifo, or socket — we do NOT zero-fill, because os.WriteFile follows
+// symlinks and would scribble zeros over the link *target*, which may be an
+// arbitrary file outside our control (e.g. a malicious .env that is really a
+// symlink to /etc/passwd, or a discovered .env that legitimately points
+// elsewhere). For those cases we simply os.Remove the path, which unlinks the
+// symlink itself (or the special file) without touching any target. The
+// zero-then-remove hardening only applies to plain regular files, which is the
+// only case where the on-disk bytes are ours to overwrite.
 func secureRemove(path string) error {
-	info, err := os.Stat(path)
+	fi, err := os.Lstat(path)
 	if err != nil {
 		// File already gone, nothing to do
 		return nil
 	}
-	zeros := make([]byte, info.Size())
+	// Only zero-fill genuine regular files. For symlinks and other special
+	// files, removing the directory entry is the safe, non-destructive choice.
+	if !fi.Mode().IsRegular() {
+		return os.Remove(path)
+	}
+	zeros := make([]byte, fi.Size())
 	if err := os.WriteFile(path, zeros, 0600); err != nil {
 		return fmt.Errorf("overwriting temp file: %w", err)
 	}

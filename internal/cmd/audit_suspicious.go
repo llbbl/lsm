@@ -93,10 +93,10 @@ Each event may match multiple detectors; all matching reasons are reported.`,
 				return fmt.Errorf("audit suspicious: %w", scanErr)
 			}
 			if skipped {
-				fmt.Fprintln(errOut, "note: new-parent-comm detector skipped — audit log spans less than the lookback window")
+				_, _ = fmt.Fprintln(errOut, "note: new-parent-comm detector skipped — audit log spans less than the lookback window")
 			}
 			if count == 0 {
-				fmt.Fprintln(out, "no suspicious events found")
+				_, _ = fmt.Fprintln(out, "no suspicious events found")
 			}
 			return nil
 		},
