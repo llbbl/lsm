@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/llbbl/lsm/internal/config"
 	"github.com/llbbl/lsm/internal/store"
 )
 
@@ -25,8 +26,22 @@ func newAppsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
+			// Load the GitHub markers so apps wired to GitHub can show a
+			// compact "→ gh:<repo>" suffix. This is best-effort: a config
+			// read failure must not break the plain app listing, so an error
+			// just yields no markers (nil map) and unchanged output.
+			var ghLinks map[string]config.GitHubLink
+			if globalCfg, cerr := config.LoadGlobalConfig(dir); cerr == nil {
+				ghLinks = globalCfg.GitHub
+			}
+
 			for _, app := range apps {
-				if _, err := fmt.Fprintln(cmd.OutOrStdout(), app); err != nil {
+				line := app
+				if link, ok := ghLinks[app]; ok && link.Repo != "" {
+					line = fmt.Sprintf("%s  → gh:%s", app, link.Repo)
+				}
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), line); err != nil {
 					return err
 				}
 			}

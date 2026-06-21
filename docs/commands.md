@@ -233,3 +233,71 @@ dev
 production
 staging
 ```
+
+---
+
+## gh
+
+Manage GitHub Actions secrets from your locally-encrypted lsm store.
+
+`lsm gh` is **directory-bound**: it operates on the app registered for the
+current directory via `lsm link`. Unlike the other commands it does **not**
+accept `--app` — run it from the project root. It requires the GitHub CLI
+(`gh`) to be installed and authenticated (`gh auth login`).
+
+> **Write-only API.** GitHub's secrets API cannot return secret values. Secret
+> values can never be pulled back from GitHub; `lsm gh status` shows secret
+> names and update timestamps only.
+
+Common flags:
+
+- `--repo OWNER/REPO` — target repository (default: parsed from the `origin`
+  remote of the current directory).
+- `--gh-env <name>` — target a GitHub Actions **environment's** secrets instead
+  of the repository-level secrets.
+- `--env <name>` — which local environment to read from (resolves from `--env`,
+  then `.lsm.yaml`, then the global default env).
+
+### gh push
+
+Push every secret in the local store to GitHub Actions.
+
+```bash
+lsm gh push                        # set repo Actions secrets
+lsm gh push --gh-env production     # set a GitHub environment's secrets
+lsm gh push --repo acme/widget      # override the target repo
+lsm gh push --prune                 # delete remote secrets not present locally
+lsm gh push -y                       # skip confirmation prompts (alias: --force)
+```
+
+Behavior:
+
+- Prints the secret **names** (never values) and a count, then prompts for
+  confirmation. `-y`/`--force` skips the prompt; a non-terminal invocation
+  without `--force` is refused rather than run silently.
+- Each value is streamed to `gh secret set` on **stdin** — values never appear
+  in the process arguments, and no plaintext temp file is written.
+- No backup file is created.
+- `--prune` deletes GitHub secrets that are not present locally. It lists
+  exactly what will be deleted and requires its own confirmation (same
+  `--force` / non-terminal rules).
+- Emits an audit event recording the names, count, repo, and target — never
+  values.
+
+### gh status
+
+Compare the local store with GitHub Actions secrets.
+
+```bash
+lsm gh status
+lsm gh status --gh-env production
+```
+
+Output is grouped into three buckets:
+
+- **In sync** — present both locally and on GitHub (with GitHub's `updatedAt`).
+- **Local only** — present locally, would be pushed.
+- **Remote only** — present on GitHub but not locally (with GitHub's
+  `updatedAt`).
+
+Only names and timestamps are shown — never values.
