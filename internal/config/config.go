@@ -20,10 +20,24 @@ type Config struct {
 
 // GlobalConfig represents ~/.lsm/config.yaml
 type GlobalConfig struct {
-	Env  string            `yaml:"env"`
-	Apps map[string]string `yaml:"apps,omitempty"` // app name -> absolute path
-	Log  LogConfig         `yaml:"log,omitempty"`
-	OTLP OTLPConfig        `yaml:"otlp,omitempty"`
+	Env    string                `yaml:"env"`
+	Apps   map[string]string     `yaml:"apps,omitempty"` // app name -> absolute path
+	Log    LogConfig             `yaml:"log,omitempty"`
+	OTLP   OTLPConfig            `yaml:"otlp,omitempty"`
+	GitHub map[string]GitHubLink `yaml:"github,omitempty"` // app name -> last successful gh push marker
+}
+
+// GitHubLink is a durable, per-app marker recording the last successful
+// `lsm gh push`. It is a LOCAL HINT only: the live GitHub secrets list is
+// always authoritative (GitHub's secrets API is write-only, so values can
+// never be read back to verify the marker). It deliberately stores no secret
+// NAMES or VALUES — names already live in the audit log; only repo/target/
+// timestamp/count are recorded here.
+type GitHubLink struct {
+	Repo       string `yaml:"repo"`                  // OWNER/REPO the push targeted
+	Target     string `yaml:"target"`                // "actions" (repo level) or "env:<name>"
+	LastPushed string `yaml:"last_pushed,omitempty"` // RFC3339 timestamp of the push
+	LastCount  int    `yaml:"last_count,omitempty"`  // number of secrets set in that push
 }
 
 // LogConfig holds the dlog (developer/flow-tracing log) configuration.
@@ -152,6 +166,23 @@ func SaveGlobalConfig(dir string, cfg *GlobalConfig) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(dir, "config.yaml"), data, 0600)
+}
+
+// SetGitHubLink records (or replaces) the per-app GitHub push marker in the
+// global config and persists it. It performs a load-modify-save against the
+// config.yaml in dir so callers don't have to manage the round-trip or worry
+// about clobbering a nil GitHub map. Any pre-existing config (env, apps, log,
+// otlp, other github entries) is preserved.
+func SetGitHubLink(dir, app string, link GitHubLink) error {
+	cfg, err := LoadGlobalConfig(dir)
+	if err != nil {
+		return err
+	}
+	if cfg.GitHub == nil {
+		cfg.GitHub = make(map[string]GitHubLink)
+	}
+	cfg.GitHub[app] = link
+	return SaveGlobalConfig(dir, cfg)
 }
 
 // ResolveAppFromRegistry performs a reverse lookup on the Apps map,

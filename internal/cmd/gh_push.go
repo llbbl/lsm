@@ -8,6 +8,8 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
+
+	"github.com/llbbl/lsm/internal/dlog"
 )
 
 func newGhPushCmd() *cobra.Command {
@@ -55,6 +57,11 @@ func runGhPush(cmd *cobra.Command, _ []string) error {
 	names := sortedNames(s.List())
 	dump := s.Dump()
 
+	log := dlog.From(ctx)
+	// Flow trace: NAMES only. dump holds VALUES and must NEVER be logged.
+	log.Debug("gh push resolved target",
+		"repo", repo, "target", ghMarkerTarget(ghEnv), "prune", prune, "secret_count", len(names))
+
 	out := cmd.OutOrStdout()
 
 	// Confirmation: show names (never values) and the target.
@@ -92,10 +99,12 @@ func runGhPush(cmd *cobra.Command, _ []string) error {
 		if _, err := ghRun(ctx, dump[name], args...); err != nil {
 			// Record the partial push before surfacing the failure: the
 			// secrets in setNames are already live on GitHub.
+			log.Debug("gh secret set failed", "name", name, "set_so_far", len(setNames))
 			emitGhPushEvent(cmd, cfg, repo, ghEnv, setNames, nil)
 			return fmt.Errorf("%d of %d secrets were set before failure on %s: %w",
 				len(setNames), len(names), name, err)
 		}
+		log.Debug("gh secret set ok", "name", name)
 		setNames = append(setNames, name)
 	}
 
@@ -112,6 +121,12 @@ func runGhPush(cmd *cobra.Command, _ []string) error {
 	}
 
 	emitGhPushEvent(cmd, cfg, repo, ghEnv, setNames, pruned)
+
+	// Record the durable per-app marker now that the push fully succeeded.
+	// Best-effort: a marker-write failure must not fail a push whose secrets
+	// are already live (warns to stderr inside writeGhMarker). NAMES/values
+	// never reach the marker — only repo/target/timestamp/count.
+	writeGhMarker(cmd, cfg, repo, ghEnv, len(setNames))
 
 	_, _ = fmt.Fprintf(out, "Set %d secret(s) on %s\n", len(setNames), repo)
 	if len(pruned) > 0 {
@@ -145,6 +160,9 @@ func runGhPushPrune(cmd *cobra.Command, repo, ghEnv string, localNames []string,
 	}
 	sort.Strings(toDelete)
 
+	dlog.From(ctx).Debug("gh prune set computed",
+		"repo", repo, "target", ghMarkerTarget(ghEnv), "remote_count", len(remote), "prune_count", len(toDelete))
+
 	if len(toDelete) == 0 {
 		return nil, nil
 	}
@@ -173,9 +191,11 @@ func runGhPushPrune(cmd *cobra.Command, repo, ghEnv string, localNames []string,
 			args = append(args, "--env", ghEnv)
 		}
 		if _, err := ghRun(ctx, "", args...); err != nil {
+			dlog.From(ctx).Debug("gh secret delete failed", "name", name, "deleted_so_far", len(deleted))
 			return deleted, fmt.Errorf("%d of %d remote secrets were deleted before failure on %s: %w",
 				len(deleted), len(toDelete), name, err)
 		}
+		dlog.From(ctx).Debug("gh secret delete ok", "name", name)
 		deleted = append(deleted, name)
 	}
 	return deleted, nil

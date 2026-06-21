@@ -323,6 +323,113 @@ func TestSaveGlobalConfig_NilApps(t *testing.T) {
 	}
 }
 
+func TestLoadGlobalConfig_NoGitHubBlock_NilMap(t *testing.T) {
+	// Back-compat: an old config with no `github:` key must read cleanly and
+	// leave the GitHub map nil (not an error).
+	dir := t.TempDir()
+	content := "env: dev\napps:\n  webapp: /home/user/webapp\n"
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := LoadGlobalConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig: %v", err)
+	}
+	if cfg.GitHub != nil {
+		t.Errorf("GitHub = %v, want nil for a config with no github block", cfg.GitHub)
+	}
+	// A lookup into the nil map must be safe and miss.
+	if _, ok := cfg.GitHub["webapp"]; ok {
+		t.Errorf("unexpected github marker for webapp")
+	}
+}
+
+func TestLoadGlobalConfig_WithGitHubBlock(t *testing.T) {
+	dir := t.TempDir()
+	content := `env: dev
+github:
+  webapp:
+    repo: llbbl/lsm
+    target: actions
+    last_pushed: "2026-06-20T10:00:00Z"
+    last_count: 3
+  api:
+    repo: acme/api
+    target: env:production
+    last_pushed: "2026-06-19T09:00:00Z"
+    last_count: 1
+`
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := LoadGlobalConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig: %v", err)
+	}
+	web, ok := cfg.GitHub["webapp"]
+	if !ok {
+		t.Fatalf("missing github marker for webapp: %v", cfg.GitHub)
+	}
+	if web.Repo != "llbbl/lsm" || web.Target != "actions" || web.LastCount != 3 {
+		t.Errorf("webapp marker = %+v", web)
+	}
+	if web.LastPushed != "2026-06-20T10:00:00Z" {
+		t.Errorf("webapp LastPushed = %q", web.LastPushed)
+	}
+	api := cfg.GitHub["api"]
+	if api.Target != "env:production" || api.Repo != "acme/api" || api.LastCount != 1 {
+		t.Errorf("api marker = %+v", api)
+	}
+}
+
+func TestSetGitHubLink_CreatesAndPreservesExisting(t *testing.T) {
+	dir := t.TempDir()
+	// Seed an existing config with env + apps but no github block.
+	content := "env: dev\napps:\n  webapp: /home/user/webapp\n"
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	link := GitHubLink{Repo: "llbbl/lsm", Target: "actions", LastPushed: "2026-06-20T10:00:00Z", LastCount: 2}
+	if err := SetGitHubLink(dir, "webapp", link); err != nil {
+		t.Fatalf("SetGitHubLink: %v", err)
+	}
+
+	cfg, err := LoadGlobalConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig: %v", err)
+	}
+	// Pre-existing fields preserved.
+	if cfg.Env != "dev" {
+		t.Errorf("Env = %q, want dev", cfg.Env)
+	}
+	if cfg.Apps["webapp"] != "/home/user/webapp" {
+		t.Errorf("Apps not preserved: %v", cfg.Apps)
+	}
+	// New marker written.
+	got := cfg.GitHub["webapp"]
+	if got != link {
+		t.Errorf("github marker = %+v, want %+v", got, link)
+	}
+
+	// A second SetGitHubLink for another app must not clobber the first.
+	link2 := GitHubLink{Repo: "acme/api", Target: "env:prod", LastPushed: "2026-06-21T11:00:00Z", LastCount: 5}
+	if err := SetGitHubLink(dir, "api", link2); err != nil {
+		t.Fatalf("SetGitHubLink api: %v", err)
+	}
+	cfg, err = LoadGlobalConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig: %v", err)
+	}
+	if cfg.GitHub["webapp"] != link {
+		t.Errorf("first marker clobbered: %+v", cfg.GitHub["webapp"])
+	}
+	if cfg.GitHub["api"] != link2 {
+		t.Errorf("second marker = %+v, want %+v", cfg.GitHub["api"], link2)
+	}
+}
+
 func TestResolveAppFromRegistry_MatchFound(t *testing.T) {
 	cfg := &GlobalConfig{
 		Apps: map[string]string{

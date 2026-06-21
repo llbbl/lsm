@@ -13,12 +13,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
 	"github.com/llbbl/lsm/internal/audit"
 	"github.com/llbbl/lsm/internal/config"
+	"github.com/llbbl/lsm/internal/dlog"
 	"github.com/llbbl/lsm/internal/store"
 )
 
@@ -131,6 +133,10 @@ func ghResolve(cmd *cobra.Command) (*config.Config, *store.Store, error) {
 	if len(s.List()) == 0 {
 		return nil, nil, fmt.Errorf("no secrets found for %s/%s; this project is not set up locally for this env (run 'lsm set' / 'lsm import' first)", app, env)
 	}
+
+	// Flow trace: NAMES/paths only, never secret values.
+	dlog.From(cmd.Context()).Debug("gh resolved",
+		"app", app, "env", env, "dir", dir, "cwd", cwd, "secret_count", len(s.List()))
 
 	return cfg, s, nil
 }
@@ -330,4 +336,37 @@ func sortedNames(in []string) []string {
 	out := append([]string(nil), in...)
 	sort.Strings(out)
 	return out
+}
+
+// ghMarkerTarget renders the durable marker's target string for a push: the
+// repo level is "actions", a GitHub Actions environment is "env:<name>". This
+// is the same shape stored in config.GitHubLink.Target and printed by status.
+func ghMarkerTarget(ghEnv string) string {
+	if ghEnv != "" {
+		return "env:" + ghEnv
+	}
+	return "actions"
+}
+
+// writeGhMarker records the per-app GitHub push marker in the global config.
+//
+// It is intentionally BEST-EFFORT, mirroring emitGhPushEvent: by the time it
+// runs the secrets are already live on GitHub, so a failure to persist a local
+// hint must NOT fail the push. Any error is warned to stderr and swallowed.
+// Only repo/target/timestamp/count are stored — never secret names or values.
+func writeGhMarker(cmd *cobra.Command, cfg *config.Config, repo, ghEnv string, count int) {
+	log := dlog.From(cmd.Context())
+	target := ghMarkerTarget(ghEnv)
+	link := config.GitHubLink{
+		Repo:       repo,
+		Target:     target,
+		LastPushed: time.Now().UTC().Format(time.RFC3339),
+		LastCount:  count,
+	}
+	if err := config.SetGitHubLink(cfg.Dir, cfg.App, link); err != nil {
+		log.Debug("gh marker write failed", "app", cfg.App, "repo", repo, "target", target, "err", err)
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: github marker: %v\n", err)
+		return
+	}
+	log.Debug("gh marker written", "app", cfg.App, "repo", repo, "target", target, "count", count)
 }

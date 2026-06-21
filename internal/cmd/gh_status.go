@@ -8,6 +8,9 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
+
+	"github.com/llbbl/lsm/internal/config"
+	"github.com/llbbl/lsm/internal/dlog"
 )
 
 func newGhStatusCmd() *cobra.Command {
@@ -33,7 +36,7 @@ func runGhStatus(cmd *cobra.Command, _ []string) error {
 	repoFlag, _ := cmd.Flags().GetString("repo")
 	ghEnv, _ := cmd.Flags().GetString("gh-env")
 
-	_, s, err := ghResolve(cmd)
+	cfg, s, err := ghResolve(cmd)
 	if err != nil {
 		return err
 	}
@@ -47,10 +50,15 @@ func runGhStatus(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	log := dlog.From(ctx)
+	log.Debug("gh status resolved target",
+		"repo", repo, "target", ghMarkerTarget(ghEnv), "local_count", len(s.List()))
+
 	remote, err := listRemoteSecrets(ctx, repo, ghEnv)
 	if err != nil {
 		return err
 	}
+	log.Debug("gh status remote listed", "repo", repo, "remote_count", len(remote))
 
 	localSet := make(map[string]struct{})
 	for _, n := range s.List() {
@@ -100,5 +108,69 @@ func runGhStatus(cmd *cobra.Command, _ []string) error {
 		_, _ = fmt.Fprintf(out, "  %s  (github updated %s)\n", n, remoteSet[n])
 	}
 
+	reconcileGhMarker(cmd, cfg, repo, ghEnv, len(remote))
+
 	return nil
+}
+
+// reconcileGhMarker prints the durable per-app push marker (if one exists) and
+// reconciles it against the LIVE GitHub state, which is authoritative. The
+// marker is only a local hint: GitHub's secrets API is write-only, so we can
+// never verify it by reading values back. Drift is flagged explicitly when:
+//   - the marker's repo/target differs from what is being queried now, or
+//   - the live remote is empty while the marker claims a push happened.
+//
+// remoteCount is the number of secrets the live `gh secret list` returned for
+// the queried repo/target.
+func reconcileGhMarker(cmd *cobra.Command, cfg *config.Config, repo, ghEnv string, remoteCount int) {
+	out := cmd.OutOrStdout()
+	log := dlog.From(cmd.Context())
+
+	globalCfg, err := config.LoadGlobalConfig(cfg.Dir)
+	if err != nil {
+		// Non-fatal: the live buckets above are the real answer. Surface a
+		// hint but don't fail status over a local marker read.
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: github marker: %v\n", err)
+		return
+	}
+	link, ok := globalCfg.GitHub[cfg.App]
+	if !ok {
+		log.Debug("gh status no marker", "app", cfg.App)
+		return
+	}
+
+	queriedTarget := ghMarkerTarget(ghEnv)
+	log.Debug("gh status marker found",
+		"app", cfg.App, "marker_repo", link.Repo, "marker_target", link.Target,
+		"queried_repo", repo, "queried_target", queriedTarget, "remote_count", remoteCount)
+
+	_, _ = fmt.Fprintf(out, "\nLocal marker (a hint only; live GitHub state above is authoritative):\n")
+	when := link.LastPushed
+	if when == "" {
+		when = "unknown time"
+	}
+	_, _ = fmt.Fprintf(out, "  lsm last pushed %d secret(s) to %s %s at %s\n",
+		link.LastCount, link.Repo, link.Target, when)
+
+	// Reconcile against the authoritative live state.
+	var drift []string
+	if link.Repo != repo {
+		drift = append(drift, fmt.Sprintf("marker repo %q differs from queried repo %q", link.Repo, repo))
+	}
+	if link.Target != queriedTarget {
+		drift = append(drift, fmt.Sprintf("marker target %q differs from queried target %q", link.Target, queriedTarget))
+	}
+	if remoteCount == 0 && len(drift) == 0 {
+		// Same repo/target as the marker, yet GitHub reports no secrets:
+		// something deleted them remotely since the recorded push.
+		drift = append(drift, "marker claims a push but the live remote has no secrets for this target")
+	}
+
+	if len(drift) > 0 {
+		_, _ = fmt.Fprintf(out, "  DRIFT: the live GitHub state disagrees with this local marker:\n")
+		for _, d := range drift {
+			_, _ = fmt.Fprintf(out, "    - %s\n", d)
+		}
+		_, _ = fmt.Fprintln(out, "  Trust the live state above; the marker is only a local record of the last lsm push.")
+	}
 }
