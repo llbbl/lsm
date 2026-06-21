@@ -79,7 +79,37 @@ lsm edit                              # Edit secrets in $EDITOR
 lsm import <file>                     # Import from .env file (or '-' for stdin)
 lsm apps                              # List all registered apps
 lsm envs <app>                        # List environments for an app
+lsm gh push                           # Push local secrets to GitHub Actions
+lsm gh status                         # Compare local secrets with GitHub Actions
 ```
+
+### GitHub Actions secrets (`lsm gh`)
+
+`lsm gh` pushes your locally-encrypted secrets to GitHub Actions and reports
+drift between the two.
+
+```bash
+cd ~/Web/myapp        # must be the directory you ran `lsm link` in
+lsm gh push                       # set repo Actions secrets from local store
+lsm gh push --gh-env production    # target a GitHub environment instead
+lsm gh push --prune               # also delete remote secrets no longer local
+lsm gh status                     # show in-sync / local-only / remote-only
+```
+
+Requirements and behavior:
+
+- **Directory-bound.** `lsm gh` operates on the app registered for the current
+  directory via `lsm link`. It does **not** accept `--app`; run it from the
+  project root. The repo defaults to the `origin` remote (override with
+  `--repo OWNER/REPO`), and the env resolves from `--env`, `.lsm.yaml`, or the
+  global default.
+- **Requires the GitHub CLI.** `gh` must be installed and authenticated
+  (`gh auth login`).
+- **Values never touch argv or disk.** Each value is streamed to
+  `gh secret set` on stdin; no plaintext temp files, no backup file.
+- **Write-only.** GitHub's secrets API cannot return secret values. `lsm gh
+  status` shows secret **names** and GitHub's update timestamps only — values
+  can never be pulled back from GitHub.
 
 All commands accept `--app`, `--env`, and `--dir` flags to override auto-detection.
 

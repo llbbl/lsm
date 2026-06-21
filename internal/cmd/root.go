@@ -92,6 +92,7 @@ func NewRootCmd() *cobra.Command {
 		newLinkCmd(),
 		newCleanCmd(),
 		newAuditCmd(),
+		newGhCmd(),
 	)
 
 	return rootCmd
