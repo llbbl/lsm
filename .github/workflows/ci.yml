@@ -60,3 +60,33 @@ jobs:
 
       - name: Run go vet
         run: go vet ./...
+
+  cross-build:
+    name: Cross-compile (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # Keep this list in sync with the platforms=() array in
+      # .github/workflows/release.yml. A non-host GOOS/GOARCH build break
+      # (e.g. a symbol missing on windows) is invisible to the native-only
+      # test/lint/fmt jobs and otherwise only surfaces at release time.
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.7"
+
+      - name: Build all packages
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOTOOLCHAIN: local
+        run: go build ./...
