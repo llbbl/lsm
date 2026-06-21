@@ -1,5 +1,13 @@
 //go:build !windows
 
+// These tests stay constrained to non-Windows platforms because they assert
+// real parent-process resolution: TestCaptureActor_BasicFields requires a
+// non-empty ParentComm and TestLookupParentComm_Self expects lookupParentComm
+// to return a non-empty comm. The Windows lookupParentComm is a deliberate
+// best-effort no-op that always returns "", so those assertions cannot hold
+// there. The cross-platform CaptureActor code itself is still compiled on
+// Windows via the build above.
+
 package audit
 
 import (
