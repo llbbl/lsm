@@ -61,6 +61,68 @@ echo -n "secret" | lsm set API_KEY -
 
 If the key already exists, its value is updated.
 
+### Providing the value
+
+There are three ways to supply the value:
+
+| Form | Value source |
+| --- | --- |
+| `lsm set KEY VALUE` | the command line (stored verbatim) |
+| `lsm set KEY -` | stdin |
+| `lsm set KEY` | interactive prompt, or piped stdin |
+
+Positional app/env always precede a **required** KEY VALUE, so they are never
+confused with the value:
+
+```bash
+lsm set app KEY VALUE
+lsm set app env KEY VALUE
+```
+
+The value is optional **only** when KEY is the single positional argument. To
+prompt (or pipe) for a specific app/env, use the `--app`/`--env` flags — or run
+`lsm set KEY` in a linked directory:
+
+```bash
+lsm set --app app --env env KEY   # prompt/pipe for app/env's KEY
+```
+
+When only KEY is given and stdin is a **terminal**, lsm prompts for the value and
+reads it with **no echo** — the typed secret is never shown on screen and never
+lands in shell history:
+
+```bash
+lsm set API_KEY
+Value for API_KEY:      # typed input is hidden; read once, no confirmation
+```
+
+If nothing is entered at the prompt, the command errors (`no value entered`) and
+stores nothing.
+
+When only KEY is given and stdin is **piped or redirected**, lsm reads the value
+from stdin exactly as if you had passed `-`:
+
+```bash
+echo tok | lsm set API_KEY        # same as: echo tok | lsm set API_KEY -
+```
+
+### Trailing newline handling
+
+For stdin input (both `lsm set KEY -` and the piped `lsm set KEY` form), lsm
+strips a **single** trailing newline. This avoids the common `echo` footgun where
+a stored token silently carries an invisible trailing newline:
+
+```bash
+echo tok | lsm set API_KEY        # stores "tok", not "tok\n"
+```
+
+Only one trailing newline is removed (a lone `\n`, or a `\r\n`). Trailing spaces
+or tabs, additional trailing newlines, and interior newlines are all preserved,
+so multi-line values remain intact. To store a value that ends in a newline, add
+an extra one (e.g. `printf 'tok\n\n'`). The interactive prompt returns the line
+without its newline, so no trimming applies there. Values passed directly as
+`lsm set KEY VALUE` are stored exactly as given.
+
 ---
 
 ## get
