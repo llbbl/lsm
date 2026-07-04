@@ -1,27 +1,31 @@
 # Binary
 /lsm
 
-# IDE
+# Build / release artifacts
+dist/
+*.test
+coverage.out
+
+# IDE / editors
 .idea/
 .vscode/
+.zed/
 *.swp
 *.swo
-
-# Test
-coverage.out
 
 # OS
 .DS_Store
 
-# Claude
+# Local env / secrets
+.env
+.env.local
+
+# AI tools
 CLAUDE.md
 AGENT.md
+AGENTS.md
 GEMINI.md
 .claude/
-.beads/
+.codex/
+.cursor/
 _/
-
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
