@@ -67,7 +67,7 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&flagDir, "dir", "d", "", "path to lsm directory (default: ~/.lsm)")
-	rootCmd.PersistentFlags().StringVarP(&flagApp, "app", "a", "", "app name (default: current directory name)")
+	rootCmd.PersistentFlags().StringVarP(&flagApp, "app", "a", "", "app name (overrides .lsm.yaml or linked project)")
 	rootCmd.PersistentFlags().StringVarP(&flagEnv, "env", "e", "", "environment name (default: from config)")
 
 	// Make `lsm --version` print the same rich, multi-line build details as

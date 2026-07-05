@@ -1,6 +1,6 @@
 # Command Reference
 
-All commands accept these global flags:
+Most commands accept these global flags:
 
 | Flag | Description |
 |------|-------------|
@@ -9,6 +9,24 @@ All commands accept these global flags:
 | `--dir`, `-d` | Path to lsm directory (default: `~/.lsm`) |
 
 Most commands also accept positional `[app] [env]` arguments before their required args, so you can write `lsm get myapp production DB_URL` instead of `lsm get --app myapp --env production DB_URL`.
+
+`lsm gh` is stricter: it rejects `--app` and only uses the app registered for the current directory with `lsm link`.
+
+## App and Environment Resolution
+
+For non-`gh` commands, app resolution is deliberate:
+
+1. `--app` or positional `[app]`
+2. `.lsm.yaml` in the current directory
+3. `~/.lsm/config.yaml` registry lookup for the current directory path
+
+If none of those identifies an app, lsm errors and tells you to run `lsm link <app>` in the project, pass `--app`, or create `.lsm.yaml`. It does not guess the app from the current directory name.
+
+Environment resolution is:
+
+1. `--env` or positional `[env]`
+2. `.lsm.yaml` in the current directory
+3. The default `env` in `~/.lsm/config.yaml`
 
 ---
 

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -208,6 +209,27 @@ func TestGhPush_AppNotRegistered(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "lsm link") {
 		t.Errorf("error should point to 'lsm link', got: %v", err)
+	}
+}
+
+func TestGhPush_IgnoresProjectConfigAppWhenUnregistered(t *testing.T) {
+	dir := setupTestEnv(t)
+	projDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("app: yamlapp\nenv: dev\n"), 0644); err != nil {
+		t.Fatalf("writing project config: %v", err)
+	}
+	t.Chdir(projDir)
+	forceInteractive(t)
+
+	_, err := runCmd(t, "gh", "push", "--dir", dir, "--force")
+	if err == nil {
+		t.Fatal("expected error when cwd has .lsm.yaml app but is not registered")
+	}
+	if !strings.Contains(err.Error(), "lsm link") {
+		t.Errorf("error should point to 'lsm link', got: %v", err)
+	}
+	if strings.Contains(err.Error(), "yamlapp") {
+		t.Errorf("error should not use .lsm.yaml app for gh resolution, got: %v", err)
 	}
 }
 
