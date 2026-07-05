@@ -124,7 +124,7 @@ Requirements and behavior:
   status` shows secret **names** and GitHub's update timestamps only — values
   can never be pulled back from GitHub.
 
-All commands accept `--app`, `--env`, and `--dir` flags to override auto-detection.
+Non-`gh` commands accept `--app`, `--env`, and `--dir` flags to override auto-detection.
 
 See [docs/commands.md](docs/commands.md) for detailed usage and examples.
 
@@ -135,7 +135,8 @@ lsm resolves the app name and environment in this order:
 1. CLI flags (`--app`, `--env`)
 2. `.lsm.yaml` in current directory (for backward compatibility)
 3. Central registry lookup by current directory path
-4. Directory name fallback, `~/.lsm/config.yaml` for default env
+
+If no app is found, lsm stops and asks you to run `lsm link <app>`, pass `--app`, or create `.lsm.yaml`; it does not guess from the directory name. The environment resolves from `--env`, `.lsm.yaml`, then the default env in `~/.lsm/config.yaml`.
 
 The recommended approach is to use `lsm link` to register your projects. After linking, lsm automatically knows which app you're working on based on your current directory:
 

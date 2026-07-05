@@ -74,7 +74,7 @@ type ProjectConfig struct {
 // Resolve determines the final Config using the priority chain:
 // 1. CLI flags (flagDir, flagApp, flagEnv)
 // 2. .lsm.yaml in current directory
-// 3. Directory name -> app, ~/.lsm/config.yaml -> default env
+// 3. Registry lookup by current directory path, ~/.lsm/config.yaml -> default env
 func Resolve(flagDir, flagApp, flagEnv string) (*Config, error) {
 	cfg := &Config{}
 
@@ -115,17 +115,15 @@ func Resolve(flagDir, flagApp, flagEnv string) (*Config, error) {
 		}
 	}
 
-	// Resolve app: flag > project config > registry lookup > directory name
+	// Resolve app: flag > project config > registry lookup.
 	if flagApp != "" {
 		cfg.App = flagApp
 	} else if projCfgLoaded && projCfg.App != "" {
 		cfg.App = projCfg.App
 	} else if regApp := ResolveAppFromRegistry(&globalCfg, cwd); regApp != "" {
 		cfg.App = regApp
-	} else if cwd != "" {
-		cfg.App = filepath.Base(cwd)
 	} else {
-		return nil, fmt.Errorf("cannot determine app name: use --app flag or create .lsm.yaml")
+		return nil, fmt.Errorf("cannot determine app name: run 'lsm link <app>' in this project, pass --app, or create .lsm.yaml")
 	}
 
 	// Resolve env: flag > project config > global config

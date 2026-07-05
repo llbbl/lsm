@@ -429,6 +429,12 @@ func TestResolveWithPositional_FilePathNotConsumedAsApp(t *testing.T) {
 	defer func() { flagApp, flagEnv, flagDir = origApp, origEnv, origDir }()
 
 	dir := setupTestEnv(t)
+	projDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("app: pathapp\nenv: dev\n"), 0644); err != nil {
+		t.Fatalf("writing project config: %v", err)
+	}
+	t.Chdir(projDir)
+
 	flagDir = dir
 	flagApp = ""
 	flagEnv = ""
@@ -449,6 +455,12 @@ func TestResolveWithPositional_AbsolutePathNotConsumedAsApp(t *testing.T) {
 	defer func() { flagApp, flagEnv, flagDir = origApp, origEnv, origDir }()
 
 	dir := setupTestEnv(t)
+	projDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(projDir, ".lsm.yaml"), []byte("app: pathapp\nenv: dev\n"), 0644); err != nil {
+		t.Fatalf("writing project config: %v", err)
+	}
+	t.Chdir(projDir)
+
 	flagDir = dir
 	flagApp = ""
 	flagEnv = ""

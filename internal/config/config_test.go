@@ -58,7 +58,7 @@ func TestResolve_ProjectConfigOverridesDefaults(t *testing.T) {
 	}
 }
 
-func TestResolve_GlobalConfigForEnv(t *testing.T) {
+func TestResolve_GlobalConfigEnvWithoutAppSourceErrors(t *testing.T) {
 	lsmDir := t.TempDir()
 	projDir := t.TempDir()
 
@@ -69,13 +69,36 @@ func TestResolve_GlobalConfigForEnv(t *testing.T) {
 
 	t.Chdir(projDir)
 
-	cfg, err := Resolve(lsmDir, "", "")
+	_, err := Resolve(lsmDir, "", "")
+	if err == nil {
+		t.Fatal("expected error when no app source is available")
+	}
+	for _, want := range []string{"lsm link <app>", "--app", ".lsm.yaml"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to mention %q", err.Error(), want)
+		}
+	}
+	if strings.Contains(err.Error(), filepath.Base(projDir)) {
+		t.Errorf("error = %q, should not imply directory-name app fallback", err.Error())
+	}
+}
+
+func TestResolve_FlagAppUsesGlobalEnvWithoutCwdMatch(t *testing.T) {
+	lsmDir := t.TempDir()
+	projDir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(lsmDir, "config.yaml"), []byte("env: dev"), 0644); err != nil {
+		t.Fatalf("writing global config: %v", err)
+	}
+
+	t.Chdir(projDir)
+
+	cfg, err := Resolve(lsmDir, "explicitapp", "")
 	if err != nil {
 		t.Fatalf("Resolve() error: %v", err)
 	}
-	// App should be directory name
-	if cfg.App != filepath.Base(projDir) {
-		t.Errorf("App = %q, want %q", cfg.App, filepath.Base(projDir))
+	if cfg.App != "explicitapp" {
+		t.Errorf("App = %q, want %q", cfg.App, "explicitapp")
 	}
 	if cfg.Env != "dev" {
 		t.Errorf("Env = %q, want %q", cfg.Env, "dev")
@@ -180,14 +203,16 @@ func TestResolve_MalformedProjectConfig(t *testing.T) {
 
 	t.Chdir(projDir)
 
-	// Should not crash; malformed project config is silently ignored
-	cfg, err := Resolve(lsmDir, "", "")
-	if err != nil {
-		t.Fatalf("Resolve() error: %v", err)
+	// Should not crash; malformed project config is silently ignored, but it
+	// also must not re-enable the old directory-name fallback.
+	_, err := Resolve(lsmDir, "", "")
+	if err == nil {
+		t.Fatal("expected error when malformed project config leaves no app source")
 	}
-	// App should fall back to directory name since project config failed to parse
-	if cfg.App != filepath.Base(projDir) {
-		t.Errorf("App = %q, want %q (directory name fallback)", cfg.App, filepath.Base(projDir))
+	for _, want := range []string{"lsm link <app>", "--app", ".lsm.yaml"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to mention %q", err.Error(), want)
+		}
 	}
 }
 
