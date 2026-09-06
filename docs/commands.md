@@ -152,11 +152,14 @@ lsm get KEY
 lsm get DB_URL
 ```
 
-Outputs just the raw value with no trailing newline, making it suitable for command substitution:
+When output is piped or captured, the raw value is written byte-for-byte with no trailing newline, so it drops straight into command substitution:
 
 ```bash
 psql "$(lsm get DB_URL)"
+lsm get API_TOKEN | pbcopy
 ```
+
+When output is a terminal, a newline is added so the next shell prompt starts on its own line and the value can be double-clicked cleanly. Without it, zsh prints its partial-line marker (`%`) against the value and a selection picks it up.
 
 Returns an error if the key doesn't exist.
 
