@@ -4,9 +4,37 @@ This guide walks through the full setup: from installing lsm to running your app
 
 ## 1. Install
 
+### Homebrew (macOS or Linux)
+
+```bash
+brew install llbbl/tap/lsm
+```
+
+Recent Homebrew versions may require you to trust this third-party tap once. If
+the install is refused, run `brew trust llbbl/tap` and retry. You can also run
+`brew tap llbbl/tap` first, followed by `brew install lsm`.
+
+### Go
+
 ```bash
 go install github.com/llbbl/lsm/cmd/lsm@latest
 ```
+
+### Curl (macOS or Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/llbbl/lsm/main/scripts/install.sh | sh
+```
+
+The installer downloads the matching archive, verifies its checksum, and
+installs `lsm` to `~/.local/bin`. Set `LSM_BIN` to choose another destination or
+`LSM_VERSION` to pin a release.
+
+### Windows
+
+Download the `.zip` from the
+[releases page](https://github.com/llbbl/lsm/releases) and follow its bundled
+`INSTALL.md`.
 
 Verify the installation:
 
@@ -23,10 +51,28 @@ lsm init
 ```
 
 This creates `~/.lsm/` with:
+
 - `key.txt` — your private key (chmod 600, never share this)
 - `config.yaml` — global configuration (default environment, app registry)
 
 The output shows your public key (`age1...`). You don't need it for local use, but it's useful if you later want to encrypt secrets for this machine from elsewhere.
+
+As you add projects and environments, their age-encrypted secret files live in
+the same directory:
+
+```text
+~/.lsm/
+  key.txt
+  config.yaml
+  myapp.dev.age
+  myapp.production.age
+  backend.dev.age
+```
+
+The private key remains local. Secret values are decrypted only when a command
+needs them: for example, `lsm exec` injects them into its child process, while
+`lsm dump` writes them to the output file you explicitly request and masks them
+in terminal output.
 
 ## 3. Register Your Project
 
