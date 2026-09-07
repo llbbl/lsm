@@ -4,6 +4,8 @@ This document captures the locked-in decisions for how lsm's audit events leave 
 
 The local `FileSink` is not bound by these rules. It writes the full canonical `Event` (with `Hash` / `Prev`) to `~/.lsm/audit.jsonl`. The decisions below apply only to **remote** sinks.
 
+For reading and verifying that local log, see the [`audit` command reference](commands.md#audit), which covers `tail`, `show`, `query`, `verify`, and `suspicious`.
+
 ## Why decide now
 
 Loki and similar log aggregators are unforgiving about cardinality once labels are in flight. Pick wrong on day one and the index melts, retention costs explode, or you re-onboard your whole audit-event corpus into a new schema. The cheap fix is to pick well at design time; the expensive fix is migration.
