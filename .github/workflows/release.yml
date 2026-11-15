@@ -37,7 +37,7 @@ permissions:
 # Keep in sync with GO_VERSION in ci.yml so released binaries are built with
 # the same toolchain the tests ran against.
 env:
-  GO_VERSION: "1.25.14"
+  GO_VERSION: "1.27.4"
 
 jobs:
   version:

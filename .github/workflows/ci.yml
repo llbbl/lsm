@@ -11,7 +11,7 @@ permissions:
 # The toolchain patch version every job builds and tests against. go.mod
 # declares the minimum supported version (1.25.0), not the one CI runs.
 env:
-  GO_VERSION: "1.25.14"
+  GO_VERSION: "1.27.4"
 
 jobs:
   test:
