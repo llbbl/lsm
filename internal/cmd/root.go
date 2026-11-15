@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/llbbl/lsm/internal/config"
 	"github.com/llbbl/lsm/internal/dlog"
@@ -45,6 +46,9 @@ func NewRootCmd() *cobra.Command {
 			level, dest, format, err := readLogConfig()
 			if err != nil {
 				return err
+			}
+			if c.Annotations["stdout"] == "data" && strings.EqualFold(strings.TrimSpace(dest), "stdout") {
+				dest = "stderr"
 			}
 			l, closer, err := dlog.New(level, dest, format)
 			if err != nil {
@@ -130,6 +134,26 @@ func Execute() {
 	rootCmd := NewRootCmd()
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-		os.Exit(1)
+		os.Exit(exitCode(err))
 	}
+}
+
+type exitCodeError struct {
+	code int
+	err  error
+}
+
+func (e *exitCodeError) Error() string { return e.err.Error() }
+
+func (e *exitCodeError) Unwrap() error { return e.err }
+
+func exitCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	var coded *exitCodeError
+	if errors.As(err, &coded) {
+		return coded.code
+	}
+	return 1
 }

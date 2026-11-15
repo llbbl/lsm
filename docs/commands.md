@@ -163,6 +163,43 @@ When output is a terminal, a newline is added so the next shell prompt starts on
 
 Returns an error if the key doesn't exist.
 
+### Using lsm from other programs
+
+When captured or piped, `lsm get` writes only the exact secret value to stdout,
+with no added newline. Treat it as data: do not trim it or log it. Errors go to
+stderr as `Error: <message>`.
+
+Developer logs for `get`, `list`, `dump`, and `exec` never write to stdout, even
+when `log.dest` is `stdout`; those logs go to stderr instead. `list` writes only
+key names, `dump` keeps its existing masked output, and `exec` leaves stdout to
+the child process.
+
+`get` uses these exit codes:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Value found |
+| 1 | Other failure, including corrupt or undecryptable data |
+| 2 | Key missing from an existing store |
+| 3 | No store file for the resolved app and environment |
+| 4 | Identity file missing; run `lsm init` |
+| 5 | App or environment cannot be resolved |
+
+Other lsm commands retain their existing exit behavior. Callers should check the
+exit status before using stdout and capture stderr separately, for example:
+
+```go
+cmd := exec.Command("lsm", "get", "--app", "myapp", "--env", "production", "API_TOKEN")
+var diagnostics bytes.Buffer
+cmd.Stderr = &diagnostics
+value, err := cmd.Output()
+if err != nil {
+    // Inspect err.(*exec.ExitError).ExitCode() when available; discard value.
+    return err
+}
+// Pass value directly to its consumer without trimming or logging it.
+```
+
 ---
 
 ## delete

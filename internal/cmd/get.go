@@ -4,20 +4,30 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"os"
+
+	"github.com/llbbl/lsm/internal/config"
+	"github.com/llbbl/lsm/internal/crypto"
+	"github.com/llbbl/lsm/internal/store"
 
 	"github.com/spf13/cobra"
 )
 
 func newGetCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "get [app] [env] KEY",
-		Short: "Get a single secret value",
-		Args:  cobra.MinimumNArgs(1),
+		Use:         "get [app] [env] KEY",
+		Short:       "Get a single secret value",
+		Args:        cobra.MinimumNArgs(1),
+		Annotations: map[string]string{"stdout": "data"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, remaining, err := resolveWithPositional(args, 1)
 			if err != nil {
+				if errors.Is(err, config.ErrUnresolved) {
+					return &exitCodeError{code: 5, err: err}
+				}
 				return err
 			}
 
@@ -27,14 +37,24 @@ func newGetCmd() *cobra.Command {
 
 			key := remaining[0]
 
-			s, err := openStore(cmd, cfg)
+			id, err := loadIdentity(cmd, cfg.Dir)
 			if err != nil {
+				if errors.Is(err, crypto.ErrNoIdentity) {
+					return &exitCodeError{code: 4, err: err}
+				}
+				return err
+			}
+			s := store.New(cfg.Dir, cfg.App, cfg.Env, id)
+			if _, err := os.Stat(s.FilePath()); os.IsNotExist(err) {
+				return &exitCodeError{code: 3, err: fmt.Errorf("key %q not found", key)}
+			}
+			if err := s.Load(); err != nil {
 				return err
 			}
 
 			val, ok := s.Get(key)
 			if !ok {
-				return fmt.Errorf("key %q not found", key)
+				return &exitCodeError{code: 2, err: fmt.Errorf("key %q not found", key)}
 			}
 
 			out := cmd.OutOrStdout()

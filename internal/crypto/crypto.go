@@ -5,6 +5,7 @@ package crypto
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,9 @@ import (
 
 	"filippo.io/age"
 )
+
+// ErrNoIdentity indicates that the identity file does not exist.
+var ErrNoIdentity = errors.New("key file not found")
 
 // GenerateIdentity creates a new age X25519 identity (keypair).
 func GenerateIdentity() (*age.X25519Identity, error) {
@@ -38,7 +42,7 @@ func LoadIdentity(keyPath string) (id *age.X25519Identity, warnCount int, err er
 	info, err := os.Stat(keyPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, 0, fmt.Errorf("key file not found: %s (run 'lsm init' to create one)", keyPath)
+			return nil, 0, fmt.Errorf("%w: %s (run 'lsm init' to create one)", ErrNoIdentity, keyPath)
 		}
 		return nil, 0, fmt.Errorf("stat key file: %w", err)
 	}

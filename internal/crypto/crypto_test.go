@@ -4,11 +4,25 @@
 package crypto
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestLoadIdentity_NoIdentitySentinel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "key.txt")
+	_, _, err := LoadIdentity(path)
+	if !errors.Is(err, ErrNoIdentity) {
+		t.Fatalf("error = %v, want ErrNoIdentity", err)
+	}
+	want := fmt.Sprintf("key file not found: %s (run 'lsm init' to create one)", path)
+	if err.Error() != want {
+		t.Errorf("error text = %q, want %q", err, want)
+	}
+}
 
 func TestGenerateIdentity(t *testing.T) {
 	id, err := GenerateIdentity()

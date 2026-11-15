@@ -4,6 +4,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +13,26 @@ import (
 
 	"gopkg.in/yaml.v3"
 )
+
+func TestResolve_UnresolvedSentinel(t *testing.T) {
+	t.Chdir(t.TempDir())
+	for _, app := range []string{"", "testapp"} {
+		t.Run("app="+app, func(t *testing.T) {
+			dir := t.TempDir()
+			_, err := Resolve(dir, app, "")
+			if !errors.Is(err, ErrUnresolved) {
+				t.Fatalf("error = %v, want ErrUnresolved", err)
+			}
+			want := "cannot determine app name: run 'lsm link <app>' in this project, pass --app, or create .lsm.yaml"
+			if app != "" {
+				want = fmt.Sprintf("cannot determine environment: use --env flag, create .lsm.yaml, or set env in %s", filepath.Join(dir, "config.yaml"))
+			}
+			if err.Error() != want {
+				t.Errorf("error text = %q, want %q", err, want)
+			}
+		})
+	}
+}
 
 func TestResolve_FlagsOverrideAll(t *testing.T) {
 	dir := t.TempDir()
