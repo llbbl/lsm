@@ -16,8 +16,9 @@ import (
 
 func newDumpCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "dump [app] [env]",
-		Short: "Dump secrets to a .env file (masked output to terminal)",
+		Use:         "dump [app] [env]",
+		Short:       "Dump secrets to a .env file (masked output to terminal)",
+		Annotations: map[string]string{"stdout": "data"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, _, err := resolveWithPositional(args, 0)
 			if err != nil {

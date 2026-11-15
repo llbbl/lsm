@@ -11,8 +11,9 @@ import (
 
 func newListCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "list [app] [env]",
-		Short: "List secret key names",
+		Use:         "list [app] [env]",
+		Short:       "List secret key names",
+		Annotations: map[string]string{"stdout": "data"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, _, err := resolveWithPositional(args, 0)
 			if err != nil {

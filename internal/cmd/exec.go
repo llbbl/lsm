@@ -18,6 +18,7 @@ func newExecCmd() *cobra.Command {
 		Use:                "exec [app] [env] -- command [args...]",
 		Short:              "Inject secrets as env vars and run a command",
 		DisableFlagParsing: false,
+		Annotations:        map[string]string{"stdout": "data"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// ArgsLenAtDash returns the index in args where "--" was,
 			// or -1 if "--" was not used. This avoids coupling to os.Args.

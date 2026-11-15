@@ -4,12 +4,16 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
+
+// ErrUnresolved indicates that the app or environment could not be determined.
+var ErrUnresolved = errors.New("cannot determine")
 
 // Config holds the resolved configuration for an lsm operation.
 type Config struct {
@@ -123,7 +127,7 @@ func Resolve(flagDir, flagApp, flagEnv string) (*Config, error) {
 	} else if regApp := ResolveAppFromRegistry(&globalCfg, cwd); regApp != "" {
 		cfg.App = regApp
 	} else {
-		return nil, fmt.Errorf("cannot determine app name: run 'lsm link <app>' in this project, pass --app, or create .lsm.yaml")
+		return nil, fmt.Errorf("%w app name: run 'lsm link <app>' in this project, pass --app, or create .lsm.yaml", ErrUnresolved)
 	}
 
 	// Resolve env: flag > project config > global config
@@ -134,7 +138,7 @@ func Resolve(flagDir, flagApp, flagEnv string) (*Config, error) {
 	} else if globalCfg.Env != "" {
 		cfg.Env = globalCfg.Env
 	} else {
-		return nil, fmt.Errorf("cannot determine environment: use --env flag, create .lsm.yaml, or set env in %s", globalPath)
+		return nil, fmt.Errorf("%w environment: use --env flag, create .lsm.yaml, or set env in %s", ErrUnresolved, globalPath)
 	}
 
 	return cfg, nil

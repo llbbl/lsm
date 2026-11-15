@@ -66,3 +66,77 @@ func TestDlogWiring_NoConfigFile(t *testing.T) {
 		t.Fatalf("apps error: %v", err)
 	}
 }
+
+func TestDataCommandsAnnotations(t *testing.T) {
+	for _, name := range []string{"get", "list", "dump", "exec"} {
+		t.Run(name, func(t *testing.T) {
+			cmd, _, err := NewRootCmd().Find([]string{name})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cmd.Annotations["stdout"] != "data" {
+				t.Error("command stdout is not annotated as data")
+			}
+		})
+	}
+}
+
+func TestDlogWiring_DataStdout(t *testing.T) {
+	for _, name := range []string{"get", "list"} {
+		for _, dest := range []string{"stdout", " StDoUt "} {
+			t.Run(name+"/"+dest, func(t *testing.T) {
+				t.Setenv("HOME", t.TempDir())
+				t.Chdir(t.TempDir())
+				dir := setupTestEnv(t)
+				const sentinel = "fake-stdout-value"
+				if _, err := runCmd(t, "set", "--dir", dir, "--app", "testapp", "--env", "dev", "TOKEN", sentinel); err != nil {
+					t.Fatal(err)
+				}
+				cfg := fmt.Sprintf("env: dev\nlog:\n  level: debug\n  dest: %q\n", dest)
+				if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(cfg), 0600); err != nil {
+					t.Fatal(err)
+				}
+				stdout, err := os.CreateTemp(t.TempDir(), "stdout")
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer stdout.Close()
+				stderr, err := os.CreateTemp(t.TempDir(), "stderr")
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer stderr.Close()
+				origOut, origErr := os.Stdout, os.Stderr
+				os.Stdout, os.Stderr = stdout, stderr
+				defer func() { os.Stdout, os.Stderr = origOut, origErr }()
+
+				// Capture the process streams because dlog writes directly to them.
+				root := NewRootCmd()
+				args := []string{name, "--dir", dir, "--app", "testapp", "--env", "dev"}
+				want := "TOKEN\n"
+				if name == "get" {
+					args = append(args, "TOKEN")
+					want = sentinel
+				}
+				root.SetArgs(args)
+				if err := root.Execute(); err != nil {
+					t.Fatal(err)
+				}
+				out, err := os.ReadFile(stdout.Name())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(out) != want {
+					t.Errorf("stdout = %q, want %q", out, want)
+				}
+				logs, err := os.ReadFile(stderr.Name())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(string(logs), "command starting") {
+					t.Errorf("stderr missing debug log: %q", logs)
+				}
+			})
+		}
+	}
+}
