@@ -257,7 +257,7 @@ func TestStore_Import(t *testing.T) {
 	s := New(dir, "app", "dev", id)
 
 	s.Set("EXISTING", "keep")
-	err := s.Import("NEW_KEY=new_value\nEXISTING=overwritten")
+	_, err := s.Import("NEW_KEY=new_value\nEXISTING=overwritten")
 	if err != nil {
 		t.Fatalf("Import() error: %v", err)
 	}

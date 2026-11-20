@@ -97,7 +97,11 @@ func newSetCmd() *cobra.Command {
 			}
 
 			s.Set(key, value)
-			return s.Save()
+			if err := s.Save(); err != nil {
+				return err
+			}
+			emitAudit(cmd, cfg, "set", map[string]any{"key": key})
+			return nil
 		},
 	}
 }

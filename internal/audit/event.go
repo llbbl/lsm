@@ -1,13 +1,8 @@
-// Package audit provides a hash-chained, tamper-evident audit log for lsm.
-//
-// Callers construct an Event with the application-level fields (Event, App,
-// Env, Actor, Fields, LocalOnly) and hand it to a Sink. The Sink is the single
-// writer and is responsible for assigning SchemaVersion, Seq, Timestamp (if
-// zero), Prev, and Hash. This guarantees the chain is well-formed regardless
-// of caller behavior.
-//
-// This package intentionally ships without any production callers; wiring of
-// emit sites lands in follow-up work alongside the verify command.
+// Copyright (c) 2026, Logan Lindquist Land
+// SPDX-License-Identifier: BSD-3-Clause
+
+// Package audit provides a hash-chained audit log for lsm. Callers supply
+// event metadata, and the sink assigns the sequence, timestamp, and hashes.
 package audit
 
 import "time"

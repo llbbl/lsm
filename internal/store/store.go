@@ -150,18 +150,21 @@ func (s *Store) DumpOrdered() []entry {
 	return result
 }
 
-// Import merges key-value pairs from parsed .env content. Existing keys are overwritten.
-func (s *Store) Import(content string) error {
+// Import merges key-value pairs from .env content and returns the imported names.
+// Existing keys are overwritten.
+func (s *Store) Import(content string) ([]string, error) {
 	entries, err := ParseEnv(content)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var names []string
 	for _, e := range entries {
 		if e.Key != "" {
 			s.Set(e.Key, e.Value)
+			names = append(names, e.Key)
 		}
 	}
-	return nil
+	return names, nil
 }
 
 // SetRaw replaces the store contents with the given raw .env content.

@@ -69,6 +69,9 @@ func newDumpCmd() *cobra.Command {
 			if err := os.WriteFile(output, []byte(content), 0600); err != nil {
 				return fmt.Errorf("writing output file: %w", err)
 			}
+			emitAudit(cmd, cfg, "dump", map[string]any{
+				"path": output, "names": keys, "count": len(keys),
+			})
 
 			// Print masked values to terminal.
 			dump := s.Dump()

@@ -35,7 +35,11 @@ func newDeleteCmd() *cobra.Command {
 				return fmt.Errorf("key %q not found", key)
 			}
 
-			return s.Save()
+			if err := s.Save(); err != nil {
+				return err
+			}
+			emitAudit(cmd, cfg, "delete", map[string]any{"key": key})
+			return nil
 		},
 	}
 }

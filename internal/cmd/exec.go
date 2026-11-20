@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
 )
+
+var execProcess = syscall.Exec
 
 func newExecCmd() *cobra.Command {
 	return &cobra.Command{
@@ -47,10 +50,14 @@ func newExecCmd() *cobra.Command {
 			}
 
 			// Build environment: secrets override existing env vars
-			env := buildEnvWithSecrets(os.Environ(), s.Dump())
+			secrets := s.Dump()
+			env := buildEnvWithSecrets(os.Environ(), secrets)
 
-			// Replace this process with the command
-			return syscall.Exec(binary, commandArgs, env)
+			// Write the handoff event before replacing the current process.
+			emitAudit(cmd, cfg, "exec", map[string]any{
+				"command": filepath.Base(commandArgs[0]), "count": len(secrets),
+			})
+			return execProcess(binary, commandArgs, env)
 		},
 	}
 }

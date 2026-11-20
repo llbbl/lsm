@@ -18,7 +18,6 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/llbbl/lsm/internal/audit"
 	"github.com/llbbl/lsm/internal/config"
 	"github.com/llbbl/lsm/internal/dlog"
 	"github.com/llbbl/lsm/internal/store"
@@ -284,26 +283,8 @@ func confirm(cmd *cobra.Command, force bool, prompt string) (bool, error) {
 	return false, nil
 }
 
-// emitGhPushEvent appends a single audit event recording the push. It follows
-// the audit.Event + Sink pattern: construct the event with application-level
-// fields and hand it to a FileSink (the single chain writer) targeting the
-// same <dir>/audit.jsonl path the audit command reads. Only secret NAMES are
-// recorded, never values. Audit emission is best-effort: a sink error does not
-// fail the push (the secrets are already set on GitHub), but it is surfaced to
-// stderr so the user notices.
+// emitGhPushEvent records which names were set or pruned on GitHub.
 func emitGhPushEvent(cmd *cobra.Command, cfg *config.Config, repo, ghEnv string, names []string, pruned []string) {
-	path, err := resolveAuditPath("")
-	if err != nil {
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: audit: %v\n", err)
-		return
-	}
-	sink, err := audit.NewFileSink(path)
-	if err != nil {
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: audit: %v\n", err)
-		return
-	}
-	defer func() { _ = sink.Close() }()
-
 	target := "repo"
 	if ghEnv != "" {
 		target = "env:" + ghEnv
@@ -319,16 +300,7 @@ func emitGhPushEvent(cmd *cobra.Command, cfg *config.Config, repo, ghEnv string,
 		fields["pruned_count"] = len(pruned)
 	}
 
-	e := audit.Event{
-		Event:  "gh_push",
-		App:    cfg.App,
-		Env:    cfg.Env,
-		Actor:  audit.CaptureActor(),
-		Fields: fields,
-	}
-	if err := sink.Write(cmd.Context(), e); err != nil {
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: audit: %v\n", err)
-	}
+	emitAudit(cmd, cfg, "gh_push", fields)
 }
 
 // sortedNames returns a sorted copy of the input for stable display/audit.

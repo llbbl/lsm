@@ -57,6 +57,7 @@ func newGetCmd() *cobra.Command {
 				return &exitCodeError{code: 2, err: fmt.Errorf("key %q not found", key)}
 			}
 
+			emitAudit(cmd, cfg, "get", map[string]any{"key": key})
 			out := cmd.OutOrStdout()
 			writeSecretValue(out, val, isStdoutTerminal(out))
 			return nil

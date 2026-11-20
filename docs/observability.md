@@ -6,6 +6,24 @@ The local `FileSink` is not bound by these rules. It writes the full canonical `
 
 For reading and verifying that local log, see the [`audit` command reference](commands.md#audit), which covers `tail`, `show`, `query`, `verify`, and `suspicious`.
 
+## Local command events
+
+LSM records command events in `audit.jsonl` in the selected LSM directory. Each event includes the resolved app and environment, actor metadata, and the fields below. Events carry secret names or counts where indicated. Secret values, subprocess arguments, and injected environment contents are excluded.
+
+| Event | When recorded | Event fields |
+|---|---|---|
+| `get` | A key is found and ready to print | `key` |
+| `set` | A key is saved | `key` |
+| `delete` | A key is removed and the store is saved | `key` |
+| `dump` | The plaintext export is written | `path`, `names`, `count` |
+| `exec` | LSM is about to hand off to the resolved executable | `command` (basename), `count` |
+| `edit` | The editor was started with access to the decrypted store | `names` (keys opened or saved), `count` |
+| `import` | The merged store is saved | `names` (imported keys), `count` |
+| `clean` | At least one plaintext file was removed, including a partial cleanup | `names`, `count`, `file_count` |
+| `gh_push` | A confirmed GitHub push ran, including a partial push | `repo`, `target`, `names`, `count`, and `pruned` and `pruned_count` when applicable |
+
+LSM reports audit write failures on stderr and preserves the command's result. The CLI writes these events locally. Concurrent processes writing to the same log can interfere with the hash chain.
+
 ## Why decide now
 
 Loki and similar log aggregators are unforgiving about cardinality once labels are in flight. Pick wrong on day one and the index melts, retention costs explode, or you re-onboard your whole audit-event corpus into a new schema. The cheap fix is to pick well at design time; the expensive fix is migration.
@@ -20,7 +38,7 @@ Labels are stable, low-cardinality dimensions Loki indexes. Everything else live
 
 | Label | Type | Expected distinct values | Why |
 |---|---|---|---|
-| `event` | string | ~10–20 (`get`, `set`, `delete`, `snapshot`, `audit.verify.failed`, ...) | Primary query dimension |
+| `event` | string | Low (see the local command event table) | Primary query dimension |
 | `app` | string (hashed; see redaction) | typically <100 per user | Per-app dashboards and alerts |
 | `env` | string (hashed; see redaction) | typically <10 (`dev`, `staging`, `prod`, ...) | Per-environment alerts |
 | `host` | string | 1–3 per user | Multi-machine correlation |
