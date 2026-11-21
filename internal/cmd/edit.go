@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -71,7 +72,17 @@ func newEditCmd() *cobra.Command {
 			editorCmd.Stdout = os.Stdout
 			editorCmd.Stderr = os.Stderr
 
-			if err := editorCmd.Run(); err != nil {
+			if err := editorCmd.Start(); err != nil {
+				return fmt.Errorf("editor exited with error: %w", err)
+			}
+			// The editor has access to plaintext even if waiting or saving later fails.
+			names := s.List()
+			defer func() {
+				slices.Sort(names)
+				names = slices.Compact(names)
+				emitAudit(cmd, cfg, "edit", map[string]any{"names": names, "count": len(names)})
+			}()
+			if err := editorCmd.Wait(); err != nil {
 				return fmt.Errorf("editor exited with error: %w", err)
 			}
 
@@ -86,7 +97,11 @@ func newEditCmd() *cobra.Command {
 				return fmt.Errorf("parsing edited content: %w", err)
 			}
 
-			return s.Save()
+			if err := s.Save(); err != nil {
+				return err
+			}
+			names = append(names, s.List()...)
+			return nil
 		},
 	}
 }

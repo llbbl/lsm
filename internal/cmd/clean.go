@@ -6,8 +6,10 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/llbbl/lsm/internal/store"
@@ -121,10 +123,22 @@ overwrite (zero-fill before remove).`,
 				}
 			}
 
-			// Remove safe files
+			removed := 0
+			names := make(map[string]struct{})
+			defer func() {
+				if removed > 0 {
+					emitAudit(cmd, cfg, "clean", map[string]any{
+						"names": slices.Sorted(maps.Keys(names)), "count": len(names), "file_count": removed,
+					})
+				}
+			}()
 			for _, f := range safe {
 				if err := secureRemove(f.path); err != nil {
 					return fmt.Errorf("removing %s: %w", filepath.Base(f.path), err)
+				}
+				removed++
+				for _, key := range f.keys {
+					names[key] = struct{}{}
 				}
 				_, _ = fmt.Fprintf(out, "Removed %s\n", filepath.Base(f.path))
 			}

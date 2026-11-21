@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/spf13/cobra"
 )
@@ -59,13 +60,17 @@ you'll be asked to specify which one.`,
 				return err
 			}
 
-			if err := s.Import(string(content)); err != nil {
+			names, err := s.Import(string(content))
+			if err != nil {
 				return fmt.Errorf("importing: %w", err)
 			}
 
 			if err := s.Save(); err != nil {
 				return err
 			}
+			slices.Sort(names)
+			names = slices.Compact(names)
+			emitAudit(cmd, cfg, "import", map[string]any{"names": names, "count": len(names)})
 
 			count := len(s.List())
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Imported %d secrets from %s\n", count, filepath.Base(file))
