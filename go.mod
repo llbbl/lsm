@@ -1,6 +1,6 @@
 module github.com/llbbl/lsm
 
-go 1.25.0
+go 1.27.4
 
 require (
 	filippo.io/age v1.3.2
