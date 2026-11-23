@@ -8,8 +8,7 @@ on:
 permissions:
   contents: read
 
-# The toolchain patch version every job builds and tests against. go.mod
-# declares the minimum supported version (1.25.0), not the one CI runs.
+# Keep this toolchain patch in sync with go.mod and release.yml.
 env:
   GO_VERSION: "1.27.4"
 
